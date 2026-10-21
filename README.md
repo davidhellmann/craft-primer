@@ -62,28 +62,6 @@ Primer fills a new entry once, and only its empty fields. That has a few consequ
 
 **Not covered.** Categories and Tags fields; entries nested in Matrix or CKEditor fields; Content Blocks inside Content Blocks. A preset holds fields placed directly in the entry type's layout, and Content Blocks one level deep.
 
-## Local development
-
-Point a Craft project at a local copy with a path repository in its `composer.json`:
-
-```json
-{
-    "minimum-stability": "dev",
-    "prefer-stable": true,
-    "repositories": [
-        { "type": "path", "url": "../craft-primer" }
-    ]
-}
-```
-
-Then `composer require davidhellmann/craft-primer` and `php craft plugin/install primer`. In the plugin folder:
-
-- `composer check-cs` and `composer phpstan` run the checks.
-- `composer test` runs the PHP tests with Codeception: the `unit` suite without Craft, then the `integration` and `multisite` suites, which install Craft into a test database from the fixtures in `tests/fixtures/solo` (one site) and `tests/fixtures/pro` (four sites in two site groups). Copy `tests/.env.example` to `tests/.env` and point it at an empty MySQL or Postgres database; every table in it is dropped. `composer test -- unit` needs no database.
-- `npm ci`, then `npm test`, runs the browser tests with Playwright. They install their own Craft from the Pro fixture into the database in `tests/browser/.env` (copy `tests/browser/.env.example`), serve it with `php craft serve` and click through the control panel.
-
-The CI workflow runs all of them, the integration suites on MySQL and Postgres with the lowest and the latest supported Craft.
-
 ## License
 
 Primer is a commercial plugin under the [Craft License](LICENSE.md). It's free to try in development environments; a production site needs a license from the Plugin Store.

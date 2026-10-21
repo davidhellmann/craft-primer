@@ -1,4 +1,5 @@
-# Two suites: `unit` for pure logic without Craft, `integration` against a real Craft install.
+# Three suites: `unit` for pure logic without Craft, `integration` (one site) and `multisite` (four sites) against a
+# real Craft install.
 # The bootstrap is global because Craft's module needs its constants before any suite starts.
 
 namespace: davidhellmann\primer\tests
