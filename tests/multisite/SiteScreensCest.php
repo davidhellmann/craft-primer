@@ -223,6 +223,29 @@ class SiteScreensCest
         $I->assertNotNull(Preset::find()->id($german->id)->site('corporateDe')->one());
     }
 
+    public function addFieldIsSearchableWithMoreThanFiveFieldsToAdd(IntegrationTester $I): void
+    {
+        $I->amLoggedInAs($I->admin());
+        // Page has twelve relation fields.
+        $handles = [];
+        foreach (['entries', 'assets', 'users'] as $type) {
+            foreach (['None', 'Site', 'SiteGroup', 'Language'] as $method) {
+                $handles[] = $type . $method;
+            }
+        }
+        $search = '[data-primer-add-menu] .menu--disclosure[data-with-search-input]';
+
+        // Seven chosen, five to add.
+        $preset = $I->preset('pagesNone', 'page', array_fill_keys(array_slice($handles, 0, 7), []), 'corporateEn');
+        $I->amOnPage("/admin/primer/presets/$preset->id");
+        $I->dontSeeElement($search);
+
+        // Six chosen, six to add.
+        $preset = $I->preset('pagesNone', 'page', array_fill_keys(array_slice($handles, 0, 6), []), 'shopEn');
+        $I->amOnPage("/admin/primer/presets/$preset->id?site=shopEn");
+        $I->seeElement($search);
+    }
+
     public function craftRendersEveryAssetsFieldWithoutAWarning(IntegrationTester $I): void
     {
         $I->amLoggedInAs($I->admin());

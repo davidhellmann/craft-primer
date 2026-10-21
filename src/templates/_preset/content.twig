@@ -42,7 +42,7 @@
     }), {
         buttonLabel: 'Add field'|t('primer'),
         buttonAttributes: { class: ['dashed', 'add', 'icon'] },
-        withSearchInput: elements|length > 5,
+        withSearchInput: elements|length - chosenUids|length > 5,
         omitIfEmpty: false,
     }) }}
 </div>
