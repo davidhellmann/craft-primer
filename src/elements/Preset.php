@@ -395,13 +395,18 @@ class Preset extends Element
     }
 
     /**
-     * Saving needs the user to edit the preset's site; Craft then propagates it through the scope, as for entries.
+     * Saving needs the user to edit the preset's site, and only that one. Craft then propagates it through the scope,
+     * and what spans every scope (the field choice, emptying a field taken out of it) reaches every site, also sites
+     * the user can't edit, as with Craft's entries.
      */
     public function canSave(User $user): bool
     {
         return $user->can('accessPlugin-primer') && $this->canEditSite($user);
     }
 
+    /**
+     * Deleting needs the user to edit the preset's site, and only that one: the presets of the other scopes go too.
+     */
     public function canDelete(User $user): bool
     {
         return $user->can('accessPlugin-primer') && $this->canEditSite($user);

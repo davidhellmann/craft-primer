@@ -42,6 +42,27 @@ class FieldChoiceCest
         }
     }
 
+    public function aUserWhoMayEditOneSiteChangesTheChoiceAndDeletesInEveryScope(IntegrationTester $I): void
+    {
+        $presets = $this->presetsWithEveryFieldFilled($I);
+        $I->amLoggedInAs($I->editor(['corporateEn']));
+
+        // The permission is checked for the site saved in only; the choice reaches every scope, as Craft's entries do.
+        $this->save($I, $presets['corporate'], 'corporateEn', [self::KEPT]);
+
+        foreach ($this->everySite($presets) as [$id, $site]) {
+            foreach (self::REMOVED as $handle) {
+                $I->assertSame([], $this->ids($id, $site, $handle), "$handle in $site");
+            }
+            $I->assertSame([$I->layoutElementUid('page', self::KEPT)], $this->choice($id, $site), "Choice in $site");
+        }
+
+        $I->postAction('primer/presets/delete', ['presetId' => $presets['corporate'], 'siteId' => $I->site('corporateEn')->id]);
+
+        $I->seeResponseCodeIs(200);
+        $I->assertSame([], Preset::find()->id(array_values($presets))->site('*')->ids());
+    }
+
     public function aFieldChosenAgainStartsEmpty(IntegrationTester $I): void
     {
         $presets = $this->presetsWithEveryFieldFilled($I);

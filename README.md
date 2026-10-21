@@ -40,7 +40,7 @@ Primer adds its own section to the control panel, with three screens:
 
 A click on a section or entry type opens its page, a double-click opens the same screen in a slideout over the one you're on. Cmd/Ctrl-click opens it in a new tab. Every screen is about one site, picked with Craft's site menu at the top.
 
-Users need the *Access Primer* permission. Saving, switching or deleting a preset in a site also needs permission to edit that site.
+Users need the *Access Primer* permission. Saving, switching or deleting a preset in a site also needs permission to edit that site, and only that one. As with Craft's entries, what a preset shares across its scopes reaches sites the user can't edit: the choice of fields, a field taken out of it being emptied, and deleting the preset in every scope.
 
 Presets are content, not project config: set them up in each environment. They work with `allowAdminChanges` off. Uninstalling Primer deletes every preset.
 
