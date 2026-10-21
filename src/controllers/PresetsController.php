@@ -9,6 +9,7 @@ use craft\models\EntryType;
 use craft\models\Section;
 use craft\models\Site;
 use craft\web\Controller;
+use davidhellmann\primer\decisions\Status;
 use davidhellmann\primer\elements\Preset;
 use davidhellmann\primer\Plugin;
 use yii\web\BadRequestHttpException;
@@ -27,7 +28,7 @@ class PresetsController extends Controller
             return false;
         }
 
-        $this->requirePermission('accessPlugin-primer');
+        $this->requirePermission(Plugin::ACCESS_PERMISSION);
 
         return true;
     }
@@ -38,17 +39,8 @@ class PresetsController extends Controller
     public function actionIndex(): Response
     {
         $site = $this->requestedSite();
-
-        $presets = [];
-        foreach (Preset::find()->siteId($site->id)->all() as $preset) {
-            $presets["$preset->sectionId:$preset->typeId"] ??= $preset;
-        }
-
-        // The sites with a preset, for entry types whose presets are in other scopes only.
-        $elsewhere = [];
-        foreach (Preset::find()->site('*')->all() as $preset) {
-            $elsewhere["$preset->sectionId:$preset->typeId"][$preset->siteId] = true;
-        }
+        $presets = $this->presetsBySectionAndType($site);
+        $indexUrl = UrlHelper::cpUrl('primer', $this->siteParams($site));
 
         $sections = [];
         foreach (Craft::$app->getEntries()->getAllSections() as $section) {
@@ -59,21 +51,16 @@ class PresetsController extends Controller
             $withPreset = [];
             $withoutPreset = [];
             foreach ($section->getEntryTypes() as $type) {
-                $key = "$section->id:$type->id";
-                $preset = $presets[$key] ?? null;
-                if ($preset || isset($elsewhere[$key])) {
-                    $withPreset[] = [
-                        'type' => $type,
-                        'preset' => $preset,
-                        'chipHtml' => Cp::chipHtml($type, ['hyperlink' => false]),
-                        'fieldCount' => $preset ? count($preset->getChosenFieldElements()) : null,
-                        'on' => $preset && $this->isOn($preset),
-                        'otherSites' => $preset ? null : $this->siteNames(array_keys($elsewhere[$key])),
-                        'delete' => $preset ? $this->deleteAttributes($preset, Craft::t('site', $type->name), UrlHelper::cpUrl('primer', $this->siteParams($site))) : null,
-                    ];
-                } else {
+                $line = $this->typeLine($section, $type, $presets, $indexUrl);
+                if (!$line['preset'] && !$line['otherSites']) {
                     $withoutPreset[] = $type;
+                    continue;
                 }
+
+                $withPreset[] = $line + [
+                    'chipHtml' => Cp::chipHtml($type, ['hyperlink' => false]),
+                    'fieldCount' => $line['preset'] ? count($line['preset']->getChosenFieldElements()) : null,
+                ];
             }
 
             $sections[] = [
@@ -90,6 +77,50 @@ class PresetsController extends Controller
     }
 
     /**
+     * The site's presets, and the sites every preset is in, both by `Preset::key()` of section and entry type; of
+     * one section or all.
+     *
+     * @return array{here: array<string, Preset>, sites: array<string, int[]>}
+     */
+    private function presetsBySectionAndType(Site $site, ?Section $section = null): array
+    {
+        $here = [];
+        foreach (Preset::find()->sectionId($section?->id)->siteId($site->id)->all() as $preset) {
+            // Oldest first: should two share the site, the one that applies.
+            $here[Preset::key((int)$preset->sectionId, (int)$preset->typeId)] ??= $preset;
+        }
+
+        $sites = [];
+        foreach (Preset::find()->sectionId($section?->id)->site('*')->all() as $preset) {
+            $sites[Preset::key((int)$preset->sectionId, (int)$preset->typeId)][] = $preset->siteId;
+        }
+
+        return ['here' => $here, 'sites' => $sites];
+    }
+
+    /**
+     * An entry type's line on the index or the section page: its preset in the site, with its status and delete
+     * attributes, or, when its presets are all in other scopes, the names of their sites ("Only in … so far").
+     *
+     * @param array{here: array<string, Preset>, sites: array<string, int[]>} $presets From `presetsBySectionAndType()`.
+     * @param string $redirect Where a page goes after deleting the preset.
+     * @return array{type: EntryType, preset: Preset|null, on: bool, otherSites: string|null, delete: array<string, mixed>|null}
+     */
+    private function typeLine(Section $section, EntryType $type, array $presets, string $redirect): array
+    {
+        $key = Preset::key($section->id, $type->id);
+        $preset = $presets['here'][$key] ?? null;
+
+        return [
+            'type' => $type,
+            'preset' => $preset,
+            'on' => $preset?->isOn() ?? false,
+            'otherSites' => !$preset && isset($presets['sites'][$key]) ? $this->siteNames($presets['sites'][$key]) : null,
+            'delete' => $preset ? $this->deleteAttributes($preset, Craft::t('site', $type->name), $redirect) : null,
+        ];
+    }
+
+    /**
      * The section page: `primer/sections/<handle>`, its entry types and the fields their presets fill. One CP screen
      * for the page and, requested by `Craft.CpScreenSlideout` with `sectionHandle` as a param, the slideout.
      */
@@ -99,30 +130,11 @@ class PresetsController extends Controller
         $section = Craft::$app->getEntries()->getSectionByHandle($sectionHandle)
             ?? throw new NotFoundHttpException('Section not found');
 
-        $presets = [];
-        foreach (Preset::find()->sectionId($section->id)->siteId($site->id)->all() as $preset) {
-            $presets[$preset->typeId] ??= $preset;
-        }
-
-        // The sites with a preset, for entry types whose presets are in other scopes only.
-        $elsewhere = [];
-        foreach (Preset::find()->sectionId($section->id)->site('*')->all() as $preset) {
-            $elsewhere[$preset->typeId][$preset->siteId] = true;
-        }
-
-        $types = [];
-        foreach ($section->getEntryTypes() as $type) {
-            $preset = $presets[$type->id] ?? null;
-            $types[] = [
-                'type' => $type,
-                'preset' => $preset,
-                'otherSites' => !$preset && isset($elsewhere[$type->id]) ? $this->siteNames(array_keys($elsewhere[$type->id])) : null,
-                'on' => $preset && $this->isOn($preset),
-                'delete' => $preset
-                    ? $this->deleteAttributes($preset, Craft::t('site', $type->name), $this->sectionUrl($section, $site))
-                    : null,
-            ];
-        }
+        $presets = $this->presetsBySectionAndType($site, $section);
+        $types = array_map(
+            fn(EntryType $type) => $this->typeLine($section, $type, $presets, $this->sectionUrl($section, $site)),
+            $section->getEntryTypes(),
+        );
 
         $sectionName = Craft::t('site', $section->name);
 
@@ -268,17 +280,8 @@ class PresetsController extends Controller
     }
 
     /**
-     * Whether the preset applies in its site: on, and on for that site. Presets have no statuses in Craft's sense,
-     * so this is checked here rather than with a query's `status()`.
-     */
-    private function isOn(Preset $preset): bool
-    {
-        return $preset->enabled && $preset->getEnabledForSite();
-    }
-
-    /**
      * The sidebar's status field, `enabledForSite[<siteId>]`, as Craft's `ElementsController` applies it: each site
-     * the user may edit, and the preset on as soon as one site is.
+     * the user may edit, and the preset on as soon as one site is (`Status`).
      */
     private function applyStatusField(Preset $preset): void
     {
@@ -292,7 +295,7 @@ class PresetsController extends Controller
         }
 
         $enabledForSite = array_map(fn($on) => (bool)$on, $enabledForSite);
-        $preset->enabled = in_array(true, $enabledForSite, true) || $preset->enabled;
+        $preset->enabled = Status::enabled($preset->enabled, $enabledForSite);
         $preset->setEnabledForSite($enabledForSite);
     }
 
@@ -315,7 +318,7 @@ class PresetsController extends Controller
         // As Craft's status field does: switching a site on switches the preset on.
         $on = (bool)$this->request->getRequiredBodyParam('enabled');
         $preset->setEnabledForSite($on);
-        $preset->enabled = $on || $preset->enabled;
+        $preset->enabled = Status::enabled($preset->enabled, [$siteId => $on]);
 
         if (!Craft::$app->getElements()->saveElement($preset, false, false, false)) {
             return $this->asFailure(Craft::t('primer', 'Couldn’t save preset.'));
@@ -346,21 +349,14 @@ class PresetsController extends Controller
 
         $section = $preset->getSection();
         $site = $preset->getSite();
-        $this->deletePreset($preset);
+        // With the presets of its entry type in every other scope, also in sites the user can't edit.
+        Plugin::getInstance()->presets->deleteInAllScopes($preset);
 
         return $this->asSuccess(
             Craft::t('primer', 'Preset deleted.'),
             redirect: $this->getPostedRedirectUrl()
                 ?? ($section ? $this->sectionUrl($section, $site) : UrlHelper::cpUrl('primer', $this->siteParams($site))),
         );
-    }
-
-    /**
-     * The one place a preset is deleted: with the presets of its entry type in every other scope.
-     */
-    private function deletePreset(Preset $preset): void
-    {
-        Plugin::getInstance()->presets->deleteInAllScopes($preset);
     }
 
     /**
@@ -508,7 +504,7 @@ class PresetsController extends Controller
         $stored = [];
         if ($preset->id) {
             foreach (Preset::find()->id($preset->id)->site('*')->all() as $inSite) {
-                $stored[$inSite->siteId] = $this->isOn($inSite);
+                $stored[$inSite->siteId] = $inSite->isOn();
             }
         }
 

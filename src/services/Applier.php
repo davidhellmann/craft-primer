@@ -95,7 +95,7 @@ class Applier extends Component
         $layout = $entry->getFieldLayout();
 
         // Presets have no statuses, so the query returned it whatever its state.
-        if (!$preset || !$preset->enabled || !$preset->getEnabledForSite() || !$layout) {
+        if (!$preset || !$preset->isOn() || !$layout) {
             return [];
         }
 
@@ -223,7 +223,7 @@ class Applier extends Component
 
     private function preset(int $sectionId, int $typeId, int $siteId): ?Preset
     {
-        $key = "$sectionId:$typeId:$siteId";
+        $key = Preset::key($sectionId, $typeId, $siteId);
 
         $this->_presets[$key] ??= Preset::find()
             ->sectionId($sectionId)

@@ -36,6 +36,11 @@ use yii\base\Event;
  */
 class Plugin extends BasePlugin
 {
+    /**
+     * Craft's automatic "Access Primer" permission: the one right to see and set presets.
+     */
+    public const ACCESS_PERMISSION = 'accessPlugin-primer';
+
     public string $schemaVersion = '1.0.0';
     public bool $hasCpSection = true;
 

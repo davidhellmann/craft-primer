@@ -13,6 +13,7 @@ use craft\models\EntryType;
 use craft\models\Section;
 use craft\models\Site;
 use davidhellmann\primer\elements\Preset;
+use davidhellmann\primer\Plugin;
 use ReflectionProperty;
 use Yii;
 use yii\log\Logger;
@@ -190,7 +191,7 @@ class IntegrationTester extends Actor
         $this->saveElement($user);
         Craft::$app->getUserPermissions()->saveUserPermissions($user->id, [
             'accessCp',
-            'accessPlugin-primer',
+            Plugin::ACCESS_PERMISSION,
             ...array_map(fn(string $handle) => 'editSite:' . $this->site($handle)->uid, $siteHandles),
         ]);
 

@@ -23,6 +23,7 @@ use craft\models\Section;
 use davidhellmann\primer\decisions\FieldChoice;
 use davidhellmann\primer\decisions\Scope;
 use davidhellmann\primer\elements\db\PresetQuery;
+use davidhellmann\primer\Plugin;
 
 /**
  * The starting elements for the chosen relation fields of one entry type in one section.
@@ -124,6 +125,23 @@ class Preset extends Element
     public static function canHold(FieldInterface $field): bool
     {
         return self::isRelationField($field) || self::innerRelationElements($field);
+    }
+
+    /**
+     * The key of a section's entry type, or of the entry type in one site, for looking presets up by them.
+     */
+    public static function key(int $sectionId, int $typeId, ?int $siteId = null): string
+    {
+        return $siteId === null ? "$sectionId:$typeId" : "$sectionId:$typeId:$siteId";
+    }
+
+    /**
+     * Whether the preset applies in its site: on, and on for that site (spec 4.6). Presets have no statuses in
+     * Craft's sense, so a query's `status()` can't tell.
+     */
+    public function isOn(): bool
+    {
+        return $this->enabled && $this->getEnabledForSite();
     }
 
     /**
@@ -391,7 +409,7 @@ class Preset extends Element
 
     public function canView(User $user): bool
     {
-        return $user->can('accessPlugin-primer');
+        return $user->can(Plugin::ACCESS_PERMISSION);
     }
 
     /**
@@ -401,7 +419,7 @@ class Preset extends Element
      */
     public function canSave(User $user): bool
     {
-        return $user->can('accessPlugin-primer') && $this->canEditSite($user);
+        return $user->can(Plugin::ACCESS_PERMISSION) && $this->canEditSite($user);
     }
 
     /**
@@ -409,7 +427,7 @@ class Preset extends Element
      */
     public function canDelete(User $user): bool
     {
-        return $user->can('accessPlugin-primer') && $this->canEditSite($user);
+        return $user->can(Plugin::ACCESS_PERMISSION) && $this->canEditSite($user);
     }
 
     private function canEditSite(User $user): bool

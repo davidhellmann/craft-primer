@@ -14,6 +14,7 @@ use craft\helpers\Json;
 use craft\models\FieldLayout;
 use davidhellmann\primer\decisions\FieldChoice;
 use davidhellmann\primer\decisions\LayoutChange;
+use davidhellmann\primer\elements\db\PresetQuery;
 use davidhellmann\primer\elements\Preset;
 use Throwable;
 use yii\base\Component;
@@ -37,7 +38,15 @@ class Presets extends Component
      */
     public function inAllScopes(int $sectionId, int $typeId): array
     {
-        return Preset::find()->sectionId($sectionId)->typeId($typeId)->site('*')->unique()->all();
+        return $this->inEverySite($sectionId, $typeId)->unique()->all();
+    }
+
+    /**
+     * The presets of a section's entry type in every site of every scope.
+     */
+    private function inEverySite(int $sectionId, int $typeId): PresetQuery
+    {
+        return Preset::find()->sectionId($sectionId)->typeId($typeId)->site('*');
     }
 
     /**
@@ -85,14 +94,8 @@ class Presets extends Component
     private function emptyUnchosenFieldsElsewhere(Preset $saved): void
     {
         $elements = Craft::$app->getElements();
-        $presets = Preset::find()
-            ->sectionId($saved->sectionId)
-            ->typeId($saved->typeId)
-            ->site('*')
-            ->status(null)
-            ->all();
 
-        foreach ($presets as $preset) {
+        foreach ($this->inEverySite((int)$saved->sectionId, (int)$saved->typeId)->all() as $preset) {
             if ($preset->id !== $saved->id || $preset->siteId !== $saved->siteId) {
                 $elements->saveElement($preset, false, false, false);
             }
@@ -149,7 +152,7 @@ class Presets extends Component
     private function ownersOf(FieldLayout $layout): array
     {
         if ($layout->provider instanceof ContentBlockField) {
-            $presetIds = Preset::find()->site('*')->unique()->status(null)->ids();
+            $presetIds = Preset::find()->site('*')->unique()->ids();
 
             return $presetIds
                 ? ContentBlock::find()->fieldId($layout->provider->id)->primaryOwnerId($presetIds)->site('*')->unique()->status(null)->ids()
@@ -158,7 +161,7 @@ class Presets extends Component
 
         $typeIds = (new Query())->select('id')->from(Table::ENTRYTYPES)->where(['fieldLayoutId' => $layout->id])->column();
 
-        return $typeIds ? Preset::find()->typeId($typeIds)->site('*')->unique()->status(null)->ids() : [];
+        return $typeIds ? Preset::find()->typeId($typeIds)->site('*')->unique()->ids() : [];
     }
 
     /**

@@ -289,9 +289,7 @@ class StatusCest
      */
     private function isOn(int $presetId, string $site): bool
     {
-        $preset = Preset::find()->id($presetId)->site($site)->one();
-
-        return $preset->enabled && $preset->getEnabledForSite();
+        return Preset::find()->id($presetId)->site($site)->one()->isOn();
     }
 
     /**

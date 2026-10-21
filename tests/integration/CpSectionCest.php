@@ -5,6 +5,7 @@ namespace davidhellmann\primer\tests\integration;
 use Craft;
 use craft\elements\User;
 use craft\enums\CmsEdition;
+use davidhellmann\primer\Plugin;
 use davidhellmann\primer\tests\Support\IntegrationTester;
 
 class CpSectionCest
@@ -25,7 +26,7 @@ class CpSectionCest
 
     public function aUserWithAccessPrimerSeesTheSection(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->editor($I, ['accessCp', 'accessPlugin-primer']));
+        $I->amLoggedInAs($this->editor($I, ['accessCp', Plugin::ACCESS_PERMISSION]));
 
         $I->amOnPage('/admin/dashboard');
         $I->seeLink('Primer', '?p=admin/primer');
