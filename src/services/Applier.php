@@ -180,6 +180,11 @@ class Applier extends Component
             ->siteId($siteId)
             ->one() ?? false;
 
+        // The preset of an entry type removed from its section is inert.
+        if ($this->_presets[$key] && !$this->_presets[$key]->typeIsInSection()) {
+            $this->_presets[$key] = false;
+        }
+
         return $this->_presets[$key] ?: null;
     }
 

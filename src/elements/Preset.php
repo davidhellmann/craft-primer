@@ -16,6 +16,7 @@ use craft\helpers\Json;
 use craft\models\EntryType;
 use craft\models\FieldLayout;
 use craft\models\Section;
+use davidhellmann\primer\decisions\FieldChoice;
 use davidhellmann\primer\decisions\Scope;
 use davidhellmann\primer\elements\db\PresetQuery;
 
@@ -235,13 +236,22 @@ class Preset extends Element
     }
 
     /**
+     * Whether the entry type is one of the section's. A preset of a type removed from its section stays, hidden and
+     * inert, and returns when the type is added back.
+     */
+    public function typeIsInSection(): bool
+    {
+        $typeIds = array_map(fn(EntryType $type) => $type->id, $this->getSection()?->getEntryTypes() ?? []);
+
+        return in_array($this->typeId, $typeIds, true);
+    }
+
+    /**
      * The entry type is one of the section's.
      */
     public function validateEntryType(string $attribute): void
     {
-        $typeIds = array_map(fn(EntryType $type) => $type->id, $this->getSection()?->getEntryTypes() ?? []);
-
-        if (!in_array($this->typeId, $typeIds, true)) {
+        if (!$this->typeIsInSection()) {
             $this->addError($attribute, Craft::t('primer', 'This entry type isn’t part of the section.'));
         }
     }
@@ -318,12 +328,36 @@ class Preset extends Element
         return $site !== null && $user->can("editSite:$site->uid");
     }
 
+    /**
+     * The UIDs of the relation fields in the entry type's layout, in layout order.
+     *
+     * @return string[]
+     */
+    public function getLayoutFieldUids(): array
+    {
+        return array_map(fn(CustomField $element) => (string)$element->uid, $this->getRelationFieldElements());
+    }
+
+    /**
+     * The value that empties a field of the preset.
+     */
+    public static function emptyValue(CustomField $element): mixed
+    {
+        return [];
+    }
+
     public function beforeSave(bool $isNew): bool
     {
-        // A field that isn't chosen holds no value, whatever the form posted for it.
-        foreach ($this->getRelationFieldElements() as $element) {
-            if (!in_array($element->uid, $this->_fieldUids, true)) {
-                $this->setFieldValue($element->attribute(), []);
+        if ($this->getFieldLayout()) {
+            // A chosen field that left the entry type's layout is dropped from the choice.
+            $this->_fieldUids = FieldChoice::kept($this->_fieldUids, $this->getLayoutFieldUids());
+
+            // A field that isn't chosen holds no value, whatever the form posted for it.
+            $unchosen = FieldChoice::unchosen($this->getLayoutFieldUids(), $this->_fieldUids);
+            foreach ($this->getRelationFieldElements() as $element) {
+                if (in_array($element->uid, $unchosen, true)) {
+                    $this->setFieldValue($element->attribute(), self::emptyValue($element));
+                }
             }
         }
 

@@ -3,7 +3,13 @@
 namespace davidhellmann\primer\services;
 
 use Craft;
+use craft\db\Table;
+use craft\fieldlayoutelements\CustomField;
+use craft\helpers\Db;
+use craft\models\EntryType;
+use davidhellmann\primer\decisions\FieldChoice;
 use davidhellmann\primer\elements\Preset;
+use Throwable;
 use yii\base\Component;
 
 /**
@@ -30,6 +36,79 @@ class Presets extends Component
     public function fieldUids(int $sectionId, int $typeId): array
     {
         return ($this->inAllScopes($sectionId, $typeId)[0] ?? null)?->getFieldUids() ?? [];
+    }
+
+    /**
+     * Saves a preset, which writes its field choice to every scope (`Preset::afterSave()`), and empties the fields the
+     * save takes out of the choice in every other site of every scope. A field that is chosen again then starts empty.
+     */
+    public function save(Preset $preset): bool
+    {
+        $before = $preset->sectionId && $preset->typeId ? $this->fieldUids($preset->sectionId, $preset->typeId) : [];
+
+        $transaction = Craft::$app->getDb()->beginTransaction();
+        try {
+            if (!Craft::$app->getElements()->saveElement($preset, updateSearchIndex: false)) {
+                $transaction->rollBack();
+                return false;
+            }
+
+            if (FieldChoice::removed($before, $preset->getFieldUids(), $preset->getLayoutFieldUids())) {
+                $this->emptyUnchosenFieldsElsewhere($preset);
+            }
+
+            $transaction->commit();
+        } catch (Throwable $e) {
+            $transaction->rollBack();
+            throw $e;
+        }
+
+        return true;
+    }
+
+    /**
+     * Saves the entry type's presets in every site but the saved preset's: each empties the fields it doesn't choose,
+     * in its own site only. Fields of one site don't propagate, so each site is saved.
+     */
+    private function emptyUnchosenFieldsElsewhere(Preset $saved): void
+    {
+        $elements = Craft::$app->getElements();
+        $presets = Preset::find()
+            ->sectionId($saved->sectionId)
+            ->typeId($saved->typeId)
+            ->site('*')
+            ->status(null)
+            ->all();
+
+        foreach ($presets as $preset) {
+            if ($preset->id !== $saved->id || $preset->siteId !== $saved->siteId) {
+                $elements->saveElement($preset, false, false, false);
+            }
+        }
+    }
+
+    /**
+     * Forgets the presets' relations in fields that left the entry type's layout. Craft reads a relation field without
+     * a stored value from its relations, so a field added back (with a new layout element UID) would otherwise show
+     * the old elements again.
+     */
+    public function forgetFieldsNotInLayout(EntryType $type): void
+    {
+        $presetIds = Preset::find()->typeId($type->id)->site('*')->unique()->status(null)->ids();
+        if (!$presetIds) {
+            return;
+        }
+
+        $fieldIds = array_map(
+            fn(CustomField $element) => $element->getField()->id,
+            $type->getFieldLayout()->getCustomFieldElements(),
+        );
+
+        Db::delete(Table::RELATIONS, array_filter([
+            'and',
+            ['sourceId' => $presetIds],
+            $fieldIds ? ['not', ['fieldId' => $fieldIds]] : null,
+        ]));
     }
 
     /**

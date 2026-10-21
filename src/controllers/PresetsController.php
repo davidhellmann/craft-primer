@@ -182,6 +182,9 @@ class PresetsController extends Controller
 
         $section = $preset->getSection() ?? throw new NotFoundHttpException('Section not found');
         $type = $preset->getType() ?? throw new NotFoundHttpException('Entry type not found');
+        if (!$preset->typeIsInSection()) {
+            throw new NotFoundHttpException('The entry type isn’t part of the section.');
+        }
         $typeName = Craft::t('site', $type->name);
         $sectionCrumb = $this->sectionCrumb($section, $site);
 
@@ -253,7 +256,7 @@ class PresetsController extends Controller
         $preset->setFieldUids($this->request->getBodyParam('fieldUids') ?: []);
         $preset->setFieldValuesFromRequest('fields');
 
-        if (!Craft::$app->getElements()->saveElement($preset, updateSearchIndex: false)) {
+        if (!Plugin::getInstance()->presets->save($preset)) {
             return $this->asModelFailure($preset, Craft::t('primer', 'Couldn’t save preset.'), 'preset');
         }
 
