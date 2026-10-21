@@ -50,4 +50,33 @@ class PropagationCest
         $I->saveElement($created);
         $I->assertSame([$book->id], Entry::find()->id($created->id)->site('corporateDe')->status(null)->one()->getFieldValue('entriesSite')->ids());
     }
+
+    public function aSiteEnabledLaterGetsWhatCraftCopiesNotAPreset(IntegrationTester $I): void
+    {
+        $section = $I->section('pagesAll');
+        $settings = $section->getSiteSettings();
+        $shopFr = $I->site('shopFr')->id;
+        $section->setSiteSettings(array_diff_key($settings, [$shopFr => true]));
+        $I->assertTrue(Craft::$app->getEntries()->saveSection($section));
+
+        // Corporate EN fills entriesSite and leaves usersSite empty; Shop FR's preset fills both.
+        [$english, $french] = [$I->book('English book'), $I->book('French book')];
+        $I->preset('pagesAll', 'page', ['entriesSite' => [$english->id], 'usersSite' => []], 'corporateEn');
+        $entry = $I->entry('pagesAll', 'page', ['title' => 'Before Shop FR']);
+
+        $section = $I->section('pagesAll');
+        $added = clone $settings[$shopFr];
+        $added->id = null;
+        $section->setSiteSettings([...$section->getSiteSettings(), $shopFr => $added]);
+        $I->assertTrue(Craft::$app->getEntries()->saveSection($section));
+        $I->preset('pagesAll', 'page', ['entriesSite' => [$french->id], 'usersSite' => [$I->admin()->id]], 'shopFr');
+
+        // Craft's queue job brings the entry to Shop FR.
+        Craft::$app->getQueue()->run();
+
+        $inFrench = Entry::find()->id($entry->id)->site('shopFr')->status(null)->one();
+        $I->assertNotNull($inFrench, 'Craft propagated the entry to Shop FR');
+        $I->assertSame([$english->id], $inFrench->getFieldValue('entriesSite')->status(null)->ids(), 'Craft copied entriesSite');
+        $I->assertSame([], $inFrench->getFieldValue('usersSite')->ids(), 'Primer filled nothing');
+    }
 }
