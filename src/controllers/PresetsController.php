@@ -58,6 +58,7 @@ class PresetsController extends Controller
                         'preset' => $preset,
                         'chipHtml' => Cp::chipHtml($type, ['hyperlink' => false]),
                         'fieldCount' => count($preset->getChosenFieldElements()),
+                        'delete' => $this->deleteAttributes($preset, Craft::t('site', $type->name), UrlHelper::cpUrl('primer')),
                     ];
                 } else {
                     $withoutPreset[] = $type;
@@ -75,6 +76,56 @@ class PresetsController extends Controller
             'site' => $site,
             'sections' => $sections,
         ]);
+    }
+
+    /**
+     * The section page: `primer/sections/<handle>`, its entry types and the fields their presets fill. One CP screen
+     * for the page and, requested by `Craft.CpScreenSlideout` with `sectionHandle` as a param, the slideout.
+     */
+    public function actionSection(string $sectionHandle): Response
+    {
+        $site = Cp::requestedSite() ?? Craft::$app->getSites()->getPrimarySite();
+        $section = Craft::$app->getEntries()->getSectionByHandle($sectionHandle)
+            ?? throw new NotFoundHttpException('Section not found');
+
+        $presets = [];
+        foreach (Preset::find()->sectionId($section->id)->siteId($site->id)->all() as $preset) {
+            $presets[$preset->typeId] = $preset;
+        }
+
+        $types = [];
+        foreach ($section->getEntryTypes() as $type) {
+            $preset = $presets[$type->id] ?? null;
+            $types[] = [
+                'type' => $type,
+                'preset' => $preset,
+                'delete' => $preset
+                    ? $this->deleteAttributes($preset, Craft::t('site', $type->name), $this->sectionUrl($section))
+                    : null,
+            ];
+        }
+
+        $sectionName = Craft::t('site', $section->name);
+
+        $response = $this->asCpScreen()
+            ->title($sectionName)
+            ->crumbs([
+                ['label' => Craft::t('primer', 'Primer'), 'url' => 'primer'],
+            ])
+            ->editUrl($this->sectionUrl($section))
+            ->contentTemplate('primer/_section/content', [
+                'section' => $section,
+                'types' => $types,
+                'site' => $site,
+            ]);
+
+        if ($this->inSlideout()) {
+            $response->toolbarHtml($this->slideoutCrumbs([
+                ['label' => $sectionName],
+            ]));
+        }
+
+        return $response;
     }
 
     /**
@@ -110,13 +161,16 @@ class PresetsController extends Controller
             }
         }
 
+        $section = $preset->getSection() ?? throw new NotFoundHttpException('Section not found');
         $type = $preset->getType() ?? throw new NotFoundHttpException('Entry type not found');
         $typeName = Craft::t('site', $type->name);
+        $sectionCrumb = $this->sectionCrumb($section);
 
         $response = $this->asCpScreen()
             ->title($preset->id ? $typeName : Craft::t('primer', 'New preset: {type}', ['type' => $typeName]))
             ->crumbs([
                 ['label' => Craft::t('primer', 'Primer'), 'url' => 'primer'],
+                ['label' => $sectionCrumb['label'], 'url' => $sectionCrumb['url']],
             ])
             ->action('primer/presets/save')
             ->redirectUrl('primer')
@@ -134,8 +188,19 @@ class PresetsController extends Controller
                 'preset' => $preset,
             ]);
 
+        if ($this->inSlideout()) {
+            $response->toolbarHtml($this->slideoutCrumbs([
+                $sectionCrumb,
+                ['label' => $typeName, 'icon' => $type->icon, 'color' => $type->color],
+            ]));
+        }
+
         if ($preset->id) {
-            $response->editUrl(UrlHelper::cpUrl("primer/presets/$preset->id"));
+            $response
+                ->editUrl(UrlHelper::cpUrl("primer/presets/$preset->id"))
+                ->actionMenuItems(fn() => [
+                    $this->deleteMenuItem($preset, $typeName, $section),
+                ]);
         }
 
         return $response;
@@ -172,6 +237,113 @@ class PresetsController extends Controller
         }
 
         return $this->asModelSuccess($preset, Craft::t('primer', 'Preset saved.'), 'preset');
+    }
+
+    /**
+     * Deletes a preset: POST `presetId`, `siteId`. A page then goes to the posted redirect or the preset's section
+     * page, where Craft shows the message; a script gets the message as JSON.
+     */
+    public function actionDelete(): ?Response
+    {
+        $this->requirePostRequest();
+
+        $siteId = (int)$this->request->getRequiredBodyParam('siteId');
+        $preset = Preset::find()->id((int)$this->request->getRequiredBodyParam('presetId'))->siteId($siteId)->one()
+            ?? throw new NotFoundHttpException('Preset not found');
+
+        if (!$preset->canDelete(static::currentUser())) {
+            throw new ForbiddenHttpException('User not authorized to delete this preset.');
+        }
+
+        $section = $preset->getSection();
+        $this->deletePreset($preset);
+
+        return $this->asSuccess(
+            Craft::t('primer', 'Preset deleted.'),
+            redirect: $this->getPostedRedirectUrl() ?? ($section ? $this->sectionUrl($section) : UrlHelper::cpUrl('primer')),
+        );
+    }
+
+    /**
+     * The one place a preset is deleted. Ticket 14 widens it to the presets of every scope.
+     */
+    private function deletePreset(Preset $preset): void
+    {
+        Craft::$app->getElements()->deleteElement($preset, true);
+    }
+
+    /**
+     * Whether the screen is requested by `Craft.CpScreenSlideout` (as JSON) rather than as a page, the way Craft's
+     * CP screen formatter tells them apart.
+     */
+    private function inSlideout(): bool
+    {
+        return $this->request->getAcceptsJson();
+    }
+
+    private function sectionUrl(Section $section): string
+    {
+        return UrlHelper::cpUrl("primer/sections/$section->handle");
+    }
+
+    /**
+     * The section page as a crumb: a click opens the page, a double-click its slideout.
+     *
+     * @return array{label: string, url: string, nav: array<string, mixed>}
+     */
+    private function sectionCrumb(Section $section): array
+    {
+        return [
+            'label' => Craft::t('site', $section->name),
+            'url' => $this->sectionUrl($section),
+            'nav' => [
+                'action' => 'primer/presets/section',
+                'params' => ['sectionHandle' => $section->handle],
+                'form' => false,
+            ],
+        ];
+    }
+
+    /**
+     * "Delete preset" in the preset page's ⋯ menu; afterwards the page goes to the section page. Craft leaves
+     * destructive actions out of a slideout's menu.
+     *
+     * @return array<string, mixed>
+     */
+    private function deleteMenuItem(Preset $preset, string $name, Section $section): array
+    {
+        return [
+            'icon' => 'trash',
+            'label' => Craft::t('primer', 'Delete preset'),
+            'destructive' => true,
+            'attributes' => $this->deleteAttributes($preset, $name, $this->sectionUrl($section)),
+        ];
+    }
+
+    /**
+     * The data attributes `_nav` deletes a preset with: what to post, the confirmation, and where a page goes after.
+     *
+     * @return array{data: array<string, mixed>}
+     */
+    private function deleteAttributes(Preset $preset, string $name, string $redirect): array
+    {
+        return [
+            'data' => [
+                'primer-delete' => ['presetId' => $preset->id, 'siteId' => $preset->siteId],
+                'primer-confirm' => Craft::t('app', 'Are you sure you want to delete “{name}”?', ['name' => $name]),
+                'primer-redirect' => Craft::$app->getSecurity()->hashData($redirect),
+            ],
+        ];
+    }
+
+    /**
+     * Craft shows no title or crumbs in a slideout; its header gets crumbs in Craft's style instead.
+     *
+     * @param array<array<string, mixed>> $crumbs
+     */
+    private function slideoutCrumbs(array $crumbs): string
+    {
+        return $this->getView()->renderTemplate('primer/_slideout-crumbs', ['crumbs' => $crumbs]);
     }
 
     /**

@@ -51,6 +51,9 @@
     <button type="button" class="btn small chromeless primer-remove" data-primer-remove title="{{ 'Remove from preset'|t('primer') }}" aria-label="{{ 'Remove from preset'|t('primer') }}">{{ iconSvg('xmark') }}</button>
 </template>
 
+{# Crumbs, delete in the ⋯ menu, and slideouts stacked from this one. #}
+{% include 'primer/_nav' %}
+
 {% css %}
     [data-primer-fields] > .field { width: 100% !important; }
     .primer-add-field { margin-block-start: var(--m); }

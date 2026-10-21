@@ -50,6 +50,7 @@ class Plugin extends BasePlugin
 
         Event::on(UrlManager::class, UrlManager::EVENT_REGISTER_CP_URL_RULES, function(RegisterUrlRulesEvent $event) {
             $event->rules['primer'] = 'primer/presets/index';
+            $event->rules['primer/sections/<sectionHandle:{handle}>'] = 'primer/presets/section';
             $event->rules['primer/presets/new'] = 'primer/presets/edit';
             $event->rules['primer/presets/<presetId:\d+>'] = 'primer/presets/edit';
         });

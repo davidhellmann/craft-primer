@@ -1,0 +1,69 @@
+{# The section page's content, as a page or in a slideout: the section's entry types, each with the fields its preset
+   fills, and "+ Add preset" for the ones without. Entry type icons take the type's own colour or stay neutral; field
+   icons stay neutral, fields have no colour in Craft. #}
+<div class="tablepane">
+    <table class="data fullwidth primer-section">
+        <thead>
+            <tr>
+                <th scope="col">{{ 'Entry Type'|t('app') }}</th>
+                <th scope="col">{{ 'Fields'|t('app') }}</th>
+                <th scope="col" class="thin"><span class="visually-hidden">{{ 'Actions'|t('app') }}</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in types %}
+                {% set type = row.type %}
+                {% set preset = row.preset %}
+                {% set typeName = type.name|t('site') %}
+                {# A type with a preset opens it; one without opens a new preset. #}
+                {% set screen = preset
+                    ? { url: url('primer/presets/' ~ preset.id), params: { presetId: preset.id } }
+                    : { url: url('primer/presets/new', { sectionId: section.id, typeId: type.id }), params: { sectionId: section.id, typeId: type.id } } %}
+                {% set nav = { action: 'primer/presets/edit', params: screen.params }|json_encode %}
+                <tr data-primer-type="{{ type.handle }}">
+                    <th scope="row">
+                        <a class="primer-section-type" href="{{ screen.url }}" data-primer-nav="{{ nav }}">
+                            {%- if type.icon %}
+                                <span class="cp-icon {{ type.color ? type.color.value : 'primer-neutral' }}">{{ iconSvg(type.icon) }}</span>
+                            {% endif -%}
+                            <span>{{ typeName }}</span>
+                        </a>
+                    </th>
+                    <td>
+                        {% if preset %}
+                            <div class="primer-section-fields" data-primer-fields>
+                                {% for element in preset.getChosenFieldElements() %}
+                                    <span>
+                                        <span class="cp-icon puny primer-neutral">{{ iconSvg(element.getField().icon()) }}</span>
+                                        {{ element.label() ?? element.getField().name|t('site') }}
+                                    </span>
+                                {% else %}
+                                    <span class="light">{{ 'No fields yet'|t('primer') }}</span>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <a class="btn small dashed add icon" href="{{ screen.url }}" data-primer-nav="{{ nav }}">
+                                {{- 'Add preset'|t('primer') -}}
+                            </a>
+                        {% endif %}
+                    </td>
+                    <td class="thin">
+                        {% if preset %}
+                            {% include 'primer/_delete' with { attributes: row.delete } only %}
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% include 'primer/_nav' %}
+
+{% css %}
+    .primer-section tbody th, .primer-section tbody td { vertical-align: middle; }
+    .primer-section tbody th { width: 30%; }
+    .primer-section-type { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+    .primer-section-fields { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+    .primer-section-fields > span { display: inline-flex; align-items: center; gap: 6px; }
+{% endcss %}

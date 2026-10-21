@@ -3,6 +3,9 @@
 namespace davidhellmann\primer\services;
 
 use Craft;
+use craft\base\Element;
+use craft\db\Query;
+use craft\db\Table;
 use craft\elements\db\ElementQueryInterface;
 use craft\elements\Entry;
 use craft\fieldlayoutelements\CustomField;
@@ -16,8 +19,8 @@ use yii\base\Component;
 use yii\base\InvalidConfigException;
 
 /**
- * Fills the empty chosen relation fields of an entry that is being created, from the preset of its section,
- * entry type and site (spec section 5). Craft then saves and propagates the entry as usual.
+ * Fills the empty chosen relation fields of an entry that is being created or switched to another entry type,
+ * from the preset of its section, entry type and site (spec section 5). Craft then saves and propagates the entry as usual.
  */
 class Applier extends Component
 {
@@ -31,10 +34,19 @@ class Applier extends Component
      */
     public function apply(Entry $entry, bool $isNew): void
     {
+        // `Entry::setTypeId()` empties `fieldLayoutId`, and Craft writes it back only after `beforeSave`.
+        // Saves that neither create the entry nor set its type leave after these two checks.
+        $typeSet = $entry->id && $entry->fieldLayoutId === null;
+        if (!$isNew && !$typeSet) {
+            return;
+        }
+
         $typeId = $this->typeId($entry);
 
         $apply = ApplyDecision::shouldApply(
             isNew: $isNew,
+            // The editor sets the type on every save, so one query compares it with the stored one.
+            typeChanged: !$isNew && $typeId !== null && $this->storedTypeId($entry) !== $typeId,
             hasSection: $entry->sectionId !== null,
             hasType: $typeId !== null,
             propagating: $entry->propagating,
@@ -50,10 +62,14 @@ class Applier extends Component
         }
 
         try {
-            $this->fill($entry, $typeId);
+            $filled = $this->fill($entry, $typeId);
         } catch (Throwable $e) {
-            Craft::warning("Primer couldn't apply the preset to an entry of entry type $typeId: {$e->getMessage()}", __METHOD__);
-            Craft::$app->getErrorHandler()->logException($e);
+            Craft::warning(sprintf("Primer couldn't apply the preset to %s: %s", $this->describe($entry), $e), __METHOD__);
+            return;
+        }
+
+        if ($filled) {
+            $this->logOnceSaved($entry, $filled);
         }
     }
 
@@ -65,14 +81,19 @@ class Applier extends Component
         $this->_presets = [];
     }
 
-    private function fill(Entry $entry, int $typeId): void
+    /**
+     * Fills the entry's empty chosen fields from its preset.
+     *
+     * @return string[] The handles of the fields it filled.
+     */
+    private function fill(Entry $entry, int $typeId): array
     {
         $preset = $this->preset((int)$entry->sectionId, $typeId, $entry->siteId);
         $layout = $entry->getFieldLayout();
 
         // Presets have no statuses, so the query returned it whatever its state.
         if (!$preset || !$preset->enabled || !$preset->getEnabledForSite() || !$layout) {
-            return;
+            return [];
         }
 
         $filled = [];
@@ -94,9 +115,32 @@ class Applier extends Component
             }
         }
 
-        if ($filled) {
-            Craft::info(sprintf('Primer filled %s from preset %d.', implode(', ', $filled), $preset->id), __METHOD__);
-        }
+        return $filled;
+    }
+
+    /**
+     * One info line per filled entry, written once it is saved: a new entry has no ID before.
+     *
+     * @param string[] $handles
+     */
+    private function logOnceSaved(Entry $entry, array $handles): void
+    {
+        $category = __METHOD__;
+        $log = function() use ($entry, $handles, $category, &$log) {
+            $entry->off(Element::EVENT_AFTER_SAVE, $log);
+            Craft::info(sprintf('Primer filled %s in %s.', implode(', ', $handles), $this->describe($entry)), $category);
+        };
+        $entry->on(Element::EVENT_AFTER_SAVE, $log);
+    }
+
+    private function describe(Entry $entry): string
+    {
+        return sprintf(
+            '%s (site %s, entry type %s)',
+            $entry->id ? "entry $entry->id" : 'a new entry',
+            $entry->getSite()->handle,
+            $entry->getType()->handle,
+        );
     }
 
     /**
@@ -137,6 +181,17 @@ class Applier extends Component
             ->one() ?? false;
 
         return $this->_presets[$key] ?: null;
+    }
+
+    private function storedTypeId(Entry $entry): ?int
+    {
+        $typeId = (new Query())
+            ->select('typeId')
+            ->from(Table::ENTRIES)
+            ->where(['id' => $entry->id])
+            ->scalar();
+
+        return is_numeric($typeId) ? (int)$typeId : null;
     }
 
     private function typeId(Entry $entry): ?int

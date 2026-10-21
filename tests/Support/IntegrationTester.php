@@ -8,10 +8,13 @@ use craft\elements\Asset;
 use craft\elements\Entry;
 use craft\elements\User;
 use craft\fieldlayoutelements\CustomField;
+use craft\helpers\Json;
 use craft\models\EntryType;
 use craft\models\Section;
 use craft\models\Site;
 use davidhellmann\primer\elements\Preset;
+use Yii;
+use yii\log\Logger;
 
 /**
  * The actor of the `integration` suite: Craft's module plus Asserts, and shortcuts into the fixture's content model.
@@ -135,5 +138,72 @@ class IntegrationTester extends Actor
         $this->saveElement($preset);
 
         return $preset;
+    }
+
+    /**
+     * A CP screen as `Craft.CpScreenSlideout` requests it: a GET to the action, answered with JSON.
+     *
+     * @param array<string, mixed> $params
+     * @return array<string, mixed> The screen's parts: `content`, `extraToolbarItems`, `actionMenu`, `editUrl`, …
+     */
+    public function slideout(string $action, array $params = []): array
+    {
+        $this->haveHttpHeader('Accept', 'application/json');
+        $this->sendAjaxGetRequest("/admin/actions/$action", $params);
+        $this->deleteHeader('Accept');
+        $this->seeResponseCodeIs(200);
+
+        return Json::decode($this->grabPageSource());
+    }
+
+    /**
+     * A POST as the CP's scripts send it with `Craft.sendActionRequest`, answered with JSON.
+     *
+     * @param array<string, mixed> $params
+     * @return array<string, mixed> The decoded answer; empty when it isn't JSON.
+     */
+    public function postAction(string $action, array $params = []): array
+    {
+        $this->haveHttpHeader('Accept', 'application/json');
+        $this->sendAjaxPostRequest("/admin/actions/$action", $params);
+        $this->deleteHeader('Accept');
+        $data = Json::decodeIfJson($this->grabPageSource());
+
+        return is_array($data) ? $data : [];
+    }
+
+    /**
+     * Runs an action and returns what Primer logged meanwhile.
+     *
+     * @return array<array{level: string, message: string}>
+     */
+    public function primerLogOf(callable $action): array
+    {
+        $logger = new class() extends Logger {
+            /** @var array<array{level: string, message: string}> */
+            public array $primer = [];
+
+            public function init(): void
+            {
+                // No flush on shutdown: nothing is dispatched.
+            }
+
+            public function log($message, $level, $category = 'application'): void
+            {
+                if (str_starts_with($category, 'davidhellmann\\primer\\')) {
+                    $this->primer[] = ['level' => Logger::getLevelName($level), 'message' => (string)$message];
+                }
+            }
+        };
+
+        $previous = Yii::getLogger();
+        Yii::setLogger($logger);
+        try {
+            $action();
+        } finally {
+            Yii::setLogger($previous);
+        }
+
+        return $logger->primer;
     }
 }

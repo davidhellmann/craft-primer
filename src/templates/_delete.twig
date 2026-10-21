@@ -1,0 +1,4 @@
+{# Craft's delete icon for a preset line. `attributes` come from the controller (`deleteAttributes`); `_nav` asks for
+   confirmation and deletes. #}
+{% set label = 'Delete preset'|t('primer') %}
+<a class="delete icon" role="button" tabindex="0" title="{{ label }}" aria-label="{{ label }}" {{ attr(attributes) }}></a>

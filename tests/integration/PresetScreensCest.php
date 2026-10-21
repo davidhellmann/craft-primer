@@ -49,6 +49,49 @@ class PresetScreensCest
         $I->see('Topic', '[data-section="topics"] .menu-item');
     }
 
+    public function aSectionOpensAsPageOnClickAndAsSlideoutOnDoubleClick(IntegrationTester $I): void
+    {
+        $I->amOnPage('/admin/primer');
+
+        $link = '[data-section="news"] th a';
+        $I->see('News', $link);
+        $I->seeElement($link . '[href$="primer/sections/news"]');
+        $I->assertSame(
+            ['action' => 'primer/presets/section', 'params' => ['sectionHandle' => 'news'], 'form' => false],
+            Json::decode($I->grabAttributeFrom($link, 'data-primer-nav')),
+        );
+    }
+
+    public function aPresetChipOpensAsPageOnClickAndAsSlideoutOnDoubleClick(IntegrationTester $I): void
+    {
+        $preset = $I->preset('news', 'article');
+
+        $I->amOnPage('/admin/primer');
+
+        $chip = '[data-section="news"] [data-preset] a.primer-index-chip';
+        $I->seeElement($chip . '[href$="primer/presets/' . $preset->id . '"]');
+        $I->assertSame(
+            ['action' => 'primer/presets/edit', 'params' => ['presetId' => $preset->id]],
+            Json::decode($I->grabAttributeFrom($chip, 'data-primer-nav')),
+        );
+    }
+
+    public function eachPresetLineInTheIndexCanBeDeleted(IntegrationTester $I): void
+    {
+        $preset = $I->preset('news', 'article');
+
+        $I->amOnPage('/admin/primer');
+
+        $delete = '[data-section="news"] [data-preset] a.delete.icon';
+        $I->assertSame(
+            ['presetId' => $preset->id, 'siteId' => $preset->siteId],
+            Json::decode($I->grabAttributeFrom($delete, 'data-primer-delete')),
+        );
+        $I->assertSame('Are you sure you want to delete “Article”?', $I->grabAttributeFrom($delete, 'data-primer-confirm'));
+        // Back to the index after deleting there.
+        $I->assertStringEndsWith('primer', $I->grabAttributeFrom($delete, 'data-primer-redirect'));
+    }
+
     public function aNewPresetStartsWithNoFieldsAndOffersTheRelationFields(IntegrationTester $I): void
     {
         $I->amOnPage($this->newPresetUrl($I, 'article'));
@@ -137,6 +180,118 @@ class PresetScreensCest
         $I->amOnPage($this->newPresetUrl($I, 'article'));
 
         $I->seeCurrentUrlMatches("~admin/primer/presets/$preset->id$~");
+    }
+
+    public function thePresetPageCrumbsLeadToItsSection(IntegrationTester $I): void
+    {
+        $preset = $I->preset('news', 'article');
+
+        $I->amOnPage("/admin/primer/presets/$preset->id");
+
+        $I->seeElement('#crumb-list a[href$="?p=admin/primer"]');
+        $I->seeElement('#crumb-list a[href$="?p=admin/primer/sections/news"]');
+        $I->see('News', '#crumb-list a');
+    }
+
+    public function deletePresetSitsInTheActionMenu(IntegrationTester $I): void
+    {
+        $preset = $I->preset('news', 'article');
+
+        $I->amOnPage("/admin/primer/presets/$preset->id");
+
+        $item = '.menu-item[data-primer-delete]';
+        $I->see('Delete preset', $item);
+        $I->assertSame(
+            ['presetId' => $preset->id, 'siteId' => $preset->siteId],
+            Json::decode($I->grabAttributeFrom($item, 'data-primer-delete')),
+        );
+        $I->assertSame('Are you sure you want to delete “Article”?', $I->grabAttributeFrom($item, 'data-primer-confirm'));
+        // Back to the section page after deleting (hashed, as Craft wants a posted redirect).
+        $I->assertStringEndsWith('primer/sections/news', $I->grabAttributeFrom($item, 'data-primer-redirect'));
+    }
+
+    public function aNewPresetHasNothingToDelete(IntegrationTester $I): void
+    {
+        $I->amOnPage($this->newPresetUrl($I, 'article'));
+
+        $I->dontSeeElement('[data-primer-delete]');
+    }
+
+    public function thePresetSlideoutIsTheSameScreen(IntegrationTester $I): void
+    {
+        $preset = $I->preset('news', 'article', ['topics' => [$I->topic('Design')->id]]);
+
+        $screen = $I->slideout('primer/presets/edit', ['presetId' => $preset->id]);
+
+        $I->assertSame('primer/presets/save', $screen['action']);
+        $I->assertStringEndsWith("primer/presets/$preset->id", $screen['editUrl']);
+        $I->assertStringContainsString('data-primer-field="' . $I->layoutElementUid('article', 'topics') . '"', $screen['content']);
+        $I->assertStringContainsString('Design', $screen['content']);
+        // Inputs are namespaced for the slideout.
+        $I->assertStringContainsString('name="' . $screen['namespace'] . '[fieldUids][]"', $screen['content']);
+        // Craft leaves destructive actions out of a slideout's ⋯ menu; Delete preset is on the page.
+        $I->assertEmpty($screen['actionMenu']);
+    }
+
+    public function thePresetSlideoutHeaderHasTheSectionAndTheEntryTypeAsCrumbs(IntegrationTester $I): void
+    {
+        $preset = $I->preset('news', 'article');
+
+        $screen = $I->slideout('primer/presets/edit', ['presetId' => $preset->id]);
+
+        $crumbs = $screen['extraToolbarItems'];
+        $I->assertStringContainsString('primer-slideout-crumbs', $crumbs);
+        // The section links to its page and opens its slideout on double-click.
+        $I->assertMatchesRegularExpression('~<a class="crumb-link" href="[^"]*primer/sections/news"~', $crumbs);
+        $nav = htmlspecialchars(Json::encode([
+            'action' => 'primer/presets/section',
+            'params' => ['sectionHandle' => 'news'],
+            'form' => false,
+        ]), ENT_QUOTES);
+        $I->assertStringContainsString("data-primer-nav=\"$nav\"", $crumbs);
+        // The entry type is the current crumb, with its icon in its own colour.
+        $I->assertMatchesRegularExpression('~aria-current="page"><span class="cp-icon puny blue">.*</span><span>Article</span>~s', $crumbs);
+    }
+
+    public function thePageHasNoSlideoutCrumbs(IntegrationTester $I): void
+    {
+        $preset = $I->preset('news', 'article');
+
+        $I->amOnPage("/admin/primer/presets/$preset->id");
+
+        $I->dontSeeElement('.primer-slideout-crumbs');
+    }
+
+    public function savingInASlideoutAnswersWithTheMessage(IntegrationTester $I): void
+    {
+        $topicsUid = $I->layoutElementUid('article', 'topics');
+
+        $response = $I->postAction('primer/presets/save', [
+            'siteId' => $I->section('news')->getSiteIds()[0],
+            'sectionId' => $I->section('news')->id,
+            'typeId' => $I->entryType('article')->id,
+            'fieldUids' => [$topicsUid],
+        ]);
+
+        $I->seeResponseCodeIs(200);
+        $I->assertSame('Preset saved.', $response['message']);
+        $I->assertNotNull(Preset::find()->sectionId($I->section('news')->id)->one());
+    }
+
+    public function aFailedSaveInASlideoutAnswersWithTheMessage(IntegrationTester $I): void
+    {
+        $notes = [$I->entry('news', 'note'), $I->entry('news', 'note'), $I->entry('news', 'note')];
+
+        $response = $I->postAction('primer/presets/save', [
+            'siteId' => $I->section('news')->getSiteIds()[0],
+            'sectionId' => $I->section('news')->id,
+            'typeId' => $I->entryType('article')->id,
+            'fieldUids' => [$I->layoutElementUid('article', 'relatedArticles')],
+            'fields' => ['relatedArticles' => array_map(fn($note) => $note->id, $notes)],
+        ]);
+
+        $I->seeResponseCodeIs(400);
+        $I->assertSame('Couldn’t save preset.', $response['message']);
     }
 
     private function newPresetUrl(IntegrationTester $I, string $typeHandle): string

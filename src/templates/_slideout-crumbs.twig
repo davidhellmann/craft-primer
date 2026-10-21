@@ -1,0 +1,23 @@
+{# Crumbs in a slideout header, in Craft's crumb markup and style (rules on `.primer-slideout-crumbs` in `_nav`).
+   Earlier crumbs link to their page and open their slideout on double-click; the last is the current screen.
+   Each crumb: label, and url + nav for a link, icon + color for an entry type. #}
+<nav class="primer-slideout-crumbs" aria-label="{{ 'Breadcrumbs'|t('app') }}">
+    <ul>
+        {% for crumb in crumbs %}
+            {% set current = loop.last %}
+            {% set html %}
+                {%- if crumb.icon ?? false -%}
+                    <span class="cp-icon puny {{ crumb.color ? crumb.color.value : 'primer-neutral' }}">{{ iconSvg(crumb.icon) }}</span>
+                {%- endif -%}
+                <span>{{ crumb.label }}</span>
+            {% endset %}
+            <li class="crumb{{ current ? ' current' }}">
+                {% if current %}
+                    <span class="crumb-link" aria-current="page">{{ html }}</span>
+                {% else %}
+                    <a class="crumb-link" href="{{ crumb.url }}" data-primer-nav="{{ crumb.nav|json_encode }}">{{ html }}</a>
+                {% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+</nav>

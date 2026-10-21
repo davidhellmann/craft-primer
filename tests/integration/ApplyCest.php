@@ -102,12 +102,20 @@ class ApplyCest
         };
         Event::on(PresetQuery::class, ElementQuery::EVENT_BEFORE_PREPARE, $break);
 
+        $entry = null;
         try {
-            $entry = $I->entry('news', 'article');
+            $log = $I->primerLogOf(function() use ($I, &$entry) {
+                $entry = $I->entry('news', 'article');
+            });
         } finally {
             Event::off(PresetQuery::class, ElementQuery::EVENT_BEFORE_PREPARE, $break);
         }
 
+        // One warning with the exception, nothing else.
+        $I->assertCount(1, $log);
+        $I->assertSame('warning', $log[0]['level']);
+        $I->assertStringStartsWith("Primer couldn't apply the preset to a new entry (site default, entry type article): RuntimeException: Broken preset query", $log[0]['message']);
+        $I->assertStringContainsString('Stack trace:', $log[0]['message']);
         $saved = Entry::find()->id($entry->id)->one();
         $I->assertNotNull($saved);
         $I->assertSame([], $saved->getFieldValue('writers')->ids());
