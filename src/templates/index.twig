@@ -1,5 +1,5 @@
-{# The index: every section of the site, its entry types with a preset as Craft's entry type chips, and
-   "+ Add entry type" for the ones without; an entry type whose presets are in other scopes only says where.
+{# The index: every section of the site, its entry types with a preset as Craft's entry type chips, each with its
+   lightswitch for this site (dimmed when off), and "+ Add entry type" for the ones without; an entry type whose presets are in other scopes only says where.
    Every link stays in the site picked in Craft's site menu. Sections and chips open their page on click and their
    slideout on double-click (`_nav`). #}
 {% extends '_layouts/cp' %}
@@ -47,7 +47,7 @@
                                     <ul class="primer-index-presets">
                                         {% for item in row.presets %}
                                             {% if item.preset %}
-                                                <li data-preset="{{ item.preset.id }}">
+                                                <li data-preset="{{ item.preset.id }}" class="{{ item.on ? '' : 'primer-off' }}">
                                                     <a class="primer-index-chip"
                                                        href="{{ url('primer/presets/' ~ item.preset.id) }}"
                                                        data-primer-nav="{{ { action: 'primer/presets/edit', params: { presetId: item.preset.id }|merge(siteParam) }|json_encode }}">
@@ -56,7 +56,10 @@
                                                     <span class="light smalltext">
                                                         {{- '{count, plural, =1{# field} other{# fields}}'|t('primer', { count: item.fieldCount }) -}}
                                                     </span>
-                                                    {% include 'primer/_delete' with { attributes: item.delete } only %}
+                                                    <span class="primer-index-actions">
+                                                        {% include 'primer/_toggle' with { preset: item.preset, on: item.on } only %}
+                                                        {% include 'primer/_delete' with { attributes: item.delete } only %}
+                                                    </span>
                                                 </li>
                                             {% else %}
                                                 {# Presets in other scopes only: the chip starts this site's preset. #}
@@ -109,5 +112,7 @@
     .primer-index-chip { border-radius: var(--small-border-radius, 4px); }
     .primer-index-chip .chip { pointer-events: none; }
     .primer-index-chip:focus-visible { box-shadow: var(--focus-ring); outline: none; }
-    .primer-index-presets .delete { margin-inline-start: auto; }
+    .primer-index-actions { display: flex; align-items: center; gap: var(--m); margin-inline-start: auto; }
+    /* A line switched off for this site. */
+    .primer-index-presets .primer-off .primer-index-chip, .primer-index-presets .primer-off .light { opacity: .5; }
 {% endcss %}

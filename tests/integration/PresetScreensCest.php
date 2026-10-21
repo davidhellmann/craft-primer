@@ -173,6 +173,44 @@ class PresetScreensCest
         $I->assertNull(Preset::find()->sectionId($I->section('news')->id)->one());
     }
 
+    public function onASingleSiteTheSidebarHasOneEnabledSwitch(IntegrationTester $I): void
+    {
+        $siteId = $I->section('news')->getSiteIds()[0];
+
+        $I->amOnPage($this->newPresetUrl($I, 'article'));
+
+        $I->see('Enabled', '[data-primer-status] label');
+        $I->seeElement("[data-primer-status] .lightswitch.on input[name=\"enabledForSite[$siteId]\"][value=\"1\"]");
+        $I->dontSeeElement('[data-primer-status-all]');
+    }
+
+    public function aPresetThatFailsValidationKeepsThePostedStatus(IntegrationTester $I): void
+    {
+        $notes = [$I->entry('news', 'note'), $I->entry('news', 'note'), $I->entry('news', 'note')];
+        $siteId = $I->section('news')->getSiteIds()[0];
+        $I->amOnPage($this->newPresetUrl($I, 'article'));
+
+        $I->submitForm('#main-form', [
+            'fieldUids' => [$I->layoutElementUid('article', 'relatedArticles')],
+            'fields' => ['relatedArticles' => array_map(fn($note) => $note->id, $notes)],
+            'enabledForSite' => [$siteId => ''],
+        ]);
+
+        $I->see('New preset: Article', 'h1');
+        $I->seeElement("[data-primer-status] .lightswitch:not(.on) input[name=\"enabledForSite[$siteId]\"][value=\"\"]");
+    }
+
+    public function aSwitchedOffPresetIsNotApplied(IntegrationTester $I): void
+    {
+        $topic = $I->topic('Design');
+        $preset = $I->preset('news', 'article', ['topics' => [$topic->id]]);
+
+        $I->postAction('primer/presets/toggle', ['presetId' => $preset->id, 'siteId' => $preset->siteId, 'enabled' => '0']);
+
+        $I->assertSame([], $I->entry('news', 'article')->getFieldValue('topics')->ids());
+        $I->assertSame([$topic->id], Preset::find()->id($preset->id)->one()->getFieldValue('topics')->ids());
+    }
+
     public function aSecondPresetForTheSameEntryTypeOpensTheFirst(IntegrationTester $I): void
     {
         $preset = $I->preset('news', 'article');
@@ -229,6 +267,7 @@ class PresetScreensCest
         $I->assertStringContainsString('Design', $screen['content']);
         // Inputs are namespaced for the slideout.
         $I->assertStringContainsString('name="' . $screen['namespace'] . '[fieldUids][]"', $screen['content']);
+        $I->assertStringContainsString('name="' . $screen['namespace'] . "[enabledForSite][$preset->siteId]\"", $screen['sidebar']);
         // Craft leaves destructive actions out of a slideout's ⋯ menu; Delete preset is on the page.
         $I->assertEmpty($screen['actionMenu']);
     }

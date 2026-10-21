@@ -1,5 +1,5 @@
 {# The section page's content, as a page or in a slideout: the section's entry types, each with the fields its preset
-   fills, and "+ Add preset" for the ones without, or "Only in … so far" when their presets are in other scopes
+   fills and its lightswitch for this site, and "+ Add preset" for the ones without, or "Only in … so far" when their presets are in other scopes
    only (the entry type's link starts this site's). Entry type icons take the type's own colour or stay neutral; field
    icons stay neutral, fields have no colour in Craft. #}
 <div class="tablepane">
@@ -8,6 +8,7 @@
             <tr>
                 <th scope="col">{{ 'Entry Type'|t('app') }}</th>
                 <th scope="col">{{ 'Fields'|t('app') }}</th>
+                <th scope="col" class="thin">{{ 'Enabled'|t('app') }}</th>
                 <th scope="col" class="thin"><span class="visually-hidden">{{ 'Actions'|t('app') }}</span></th>
             </tr>
         </thead>
@@ -23,7 +24,7 @@
                     ? { url: url('primer/presets/' ~ preset.id), params: { presetId: preset.id }|merge(siteParam) }
                     : { url: url('primer/presets/new', { sectionId: section.id, typeId: type.id }), params: { sectionId: section.id, typeId: type.id }|merge(siteParam) } %}
                 {% set nav = { action: 'primer/presets/edit', params: screen.params }|json_encode %}
-                <tr data-primer-type="{{ type.handle }}">
+                <tr data-primer-type="{{ type.handle }}" class="{{ preset and not row.on ? 'primer-off' }}">
                     <th scope="row">
                         <a class="primer-section-type" href="{{ screen.url }}" data-primer-nav="{{ nav }}">
                             {%- if type.icon %}
@@ -54,6 +55,11 @@
                     </td>
                     <td class="thin">
                         {% if preset %}
+                            {% include 'primer/_toggle' with { preset: preset, on: row.on } only %}
+                        {% endif %}
+                    </td>
+                    <td class="thin">
+                        {% if preset %}
                             {% include 'primer/_delete' with { attributes: row.delete } only %}
                         {% endif %}
                     </td>
@@ -71,4 +77,6 @@
     .primer-section-type { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
     .primer-section-fields { display: flex; flex-wrap: wrap; gap: 4px 16px; }
     .primer-section-fields > span { display: inline-flex; align-items: center; gap: 6px; }
+    /* A line switched off for this site. */
+    .primer-section .primer-off .primer-section-type, .primer-section .primer-off .primer-section-fields { opacity: .5; }
 {% endcss %}

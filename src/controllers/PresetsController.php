@@ -67,6 +67,7 @@ class PresetsController extends Controller
                         'preset' => $preset,
                         'chipHtml' => Cp::chipHtml($type, ['hyperlink' => false]),
                         'fieldCount' => $preset ? count($preset->getChosenFieldElements()) : null,
+                        'on' => $preset && $this->isOn($preset),
                         'otherSites' => $preset ? null : $this->siteNames(array_keys($elsewhere[$key])),
                         'delete' => $preset ? $this->deleteAttributes($preset, Craft::t('site', $type->name), UrlHelper::cpUrl('primer', $this->siteParams($site))) : null,
                     ];
@@ -116,6 +117,7 @@ class PresetsController extends Controller
                 'type' => $type,
                 'preset' => $preset,
                 'otherSites' => !$preset && isset($elsewhere[$type->id]) ? $this->siteNames(array_keys($elsewhere[$type->id])) : null,
+                'on' => $preset && $this->isOn($preset),
                 'delete' => $preset
                     ? $this->deleteAttributes($preset, Craft::t('site', $type->name), $this->sectionUrl($section, $site))
                     : null,
@@ -210,6 +212,7 @@ class PresetsController extends Controller
             ])
             ->metaSidebarTemplate('primer/_preset/meta', [
                 'preset' => $preset,
+                'siteStatuses' => $this->siteStatuses($preset),
             ]);
 
         if ($this->inSlideout()) {
@@ -255,12 +258,74 @@ class PresetsController extends Controller
 
         $preset->setFieldUids($this->request->getBodyParam('fieldUids') ?: []);
         $preset->setFieldValuesFromRequest('fields');
+        $this->applyStatusField($preset);
 
         if (!Plugin::getInstance()->presets->save($preset)) {
             return $this->asModelFailure($preset, Craft::t('primer', 'Couldn’t save preset.'), 'preset');
         }
 
         return $this->asModelSuccess($preset, Craft::t('primer', 'Preset saved.'), 'preset');
+    }
+
+    /**
+     * Whether the preset applies in its site: on, and on for that site. Presets have no statuses in Craft's sense,
+     * so this is checked here rather than with a query's `status()`.
+     */
+    private function isOn(Preset $preset): bool
+    {
+        return $preset->enabled && $preset->getEnabledForSite();
+    }
+
+    /**
+     * The sidebar's status field, `enabledForSite[<siteId>]`, as Craft's `ElementsController` applies it: each site
+     * the user may edit, and the preset on as soon as one site is.
+     */
+    private function applyStatusField(Preset $preset): void
+    {
+        $enabledForSite = $this->request->getBodyParam('enabledForSite');
+        if (!is_array($enabledForSite)) {
+            return;
+        }
+
+        if (array_diff(array_keys($enabledForSite), Craft::$app->getSites()->getEditableSiteIds())) {
+            throw new ForbiddenHttpException('User not authorized to edit the preset’s status for all the submitted sites.');
+        }
+
+        $enabledForSite = array_map(fn($on) => (bool)$on, $enabledForSite);
+        $preset->enabled = in_array(true, $enabledForSite, true) || $preset->enabled;
+        $preset->setEnabledForSite($enabledForSite);
+    }
+
+    /**
+     * Switches a preset on or off for one site, the lightswitch of the index and section page: POST `presetId`,
+     * `siteId`, `enabled`. The other sites of its scope and its values stay as they are.
+     */
+    public function actionToggle(): Response
+    {
+        $this->requirePostRequest();
+
+        $siteId = (int)$this->request->getRequiredBodyParam('siteId');
+        $preset = Preset::find()->id((int)$this->request->getRequiredBodyParam('presetId'))->siteId($siteId)->one()
+            ?? throw new NotFoundHttpException('Preset not found');
+
+        if (!$preset->canSave(static::currentUser())) {
+            throw new ForbiddenHttpException('User not authorized to save this preset.');
+        }
+
+        // As Craft's status field does: switching a site on switches the preset on.
+        $on = (bool)$this->request->getRequiredBodyParam('enabled');
+        $preset->setEnabledForSite($on);
+        $preset->enabled = $on || $preset->enabled;
+
+        if (!Craft::$app->getElements()->saveElement($preset, false, false, false)) {
+            return $this->asFailure(Craft::t('primer', 'Couldn’t save preset.'));
+        }
+
+        $site = Craft::t('site', $preset->getSite()->getName());
+
+        return $this->asSuccess($on
+            ? Craft::t('primer', 'Preset switched on for {site}.', ['site' => $site])
+            : Craft::t('primer', 'Preset switched off for {site}.', ['site' => $site]));
     }
 
     /**
@@ -429,6 +494,41 @@ class PresetsController extends Controller
         $preset->setFieldUids(Plugin::getInstance()->presets->fieldUids($section->id, $type->id));
 
         return $preset;
+    }
+
+    /**
+     * The sites of the preset's scope the user may edit, in Craft's site order, each with whether the preset is on
+     * there: what the sidebar's status field shows. A preset that failed to save shows what was posted; a new one
+     * starts on.
+     *
+     * @return array<array{site: Site, on: bool}>
+     */
+    private function siteStatuses(Preset $preset): array
+    {
+        $stored = [];
+        if ($preset->id) {
+            foreach (Preset::find()->id($preset->id)->site('*')->all() as $inSite) {
+                $stored[$inSite->siteId] = $this->isOn($inSite);
+            }
+        }
+
+        $scope = array_column($preset->getSupportedSites(), 'siteId');
+        $statuses = [];
+        foreach (Craft::$app->getSites()->getEditableSites() as $site) {
+            if (!in_array($site->id, $scope, true)) {
+                continue;
+            }
+
+            $posted = $preset->getEnabledForSite($site->id);
+            $statuses[] = [
+                'site' => $site,
+                'on' => $site->id === $preset->siteId
+                    ? $preset->enabled && $posted
+                    : $posted ?? $stored[$site->id] ?? true,
+            ];
+        }
+
+        return $statuses;
     }
 
     /**

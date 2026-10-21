@@ -1,4 +1,49 @@
-{# The preset screen's details sidebar: what the preset is for. Section and entry type don't change once it exists. #}
+{# The preset screen's details sidebar: Craft's status field, then what the preset is for. Section and entry type
+   don't change once it exists.
+
+   The status field looks like an entry's once its sites are expanded: "Enabled for all sites" with a switch per site
+   of the scope below (the user's editable ones), or a single "Enabled" with one site. Craft builds that list in its
+   element editor's script, which doesn't run here, so the markup is rendered directly; every switch posts
+   `enabledForSite[<siteId>]`. Rendered inside the CP screen, so inputs are namespaced and the script uses data
+   attributes only. #}
+{% import '_includes/forms' as forms %}
+{% set token = random() %}
+{% set onCount = siteStatuses|filter(status => status.on)|length %}
+
+<fieldset data-primer-status="{{ token }}">
+    <legend class="h6">{{ 'Status'|t('app') }}</legend>
+    <div class="meta">
+        {% if siteStatuses|length > 1 %}
+            {{ forms.lightswitchField({
+                label: 'Enabled for all sites'|t('app'),
+                id: 'primer-status-all',
+                on: onCount == siteStatuses|length,
+                indeterminate: onCount > 0 and onCount < siteStatuses|length,
+                fieldClass: 'primer-status-all',
+                fieldAttributes: { data: { 'primer-status-all': true } },
+            }) }}
+            {% for status in siteStatuses %}
+                {{ forms.lightswitchField({
+                    label: status.site.name|t('site'),
+                    id: 'primer-status-' ~ status.site.id,
+                    name: 'enabledForSite[' ~ status.site.id ~ ']',
+                    on: status.on,
+                    fieldClass: 'nested',
+                    fieldAttributes: { data: { 'primer-status-site': true } },
+                }) }}
+            {% endfor %}
+        {% else %}
+            {% set status = siteStatuses|first %}
+            {{ forms.lightswitchField({
+                label: 'Enabled'|t('app'),
+                id: 'primer-status-' ~ status.site.id,
+                name: 'enabledForSite[' ~ status.site.id ~ ']',
+                on: status.on,
+            }) }}
+        {% endif %}
+    </div>
+</fieldset>
+
 <div class="meta read-only">
     <div class="data">
         <h5 class="heading">{{ 'Section'|t('app') }}</h5>
@@ -9,3 +54,40 @@
         <div class="value">{{ preset.getType().name|t('site') }}</div>
     </div>
 </div>
+
+{% if siteStatuses|length > 1 %}
+    {% js %}
+    (() => {
+        const $root = $('[data-primer-status="{{ token }}"]');
+        const $all = $root.find('[data-primer-status-all] .lightswitch');
+        const $sites = $root.find('[data-primer-status-site] .lightswitch');
+        const lightswitch = ($element) => $element.data('lightswitch');
+
+        // "Enabled for all sites" sets every site; a site's switch sets it on, off or indeterminate, as Craft's does.
+        $all.on('change', () => {
+            if (lightswitch($all).indeterminate) {
+                return;
+            }
+            const on = $all.hasClass('on');
+            $sites.each(function() {
+                on ? lightswitch($(this)).turnOn(true) : lightswitch($(this)).turnOff(true);
+            });
+        });
+        $sites.on('change', () => {
+            const count = $sites.filter('.on').length;
+            if (count === $sites.length) {
+                lightswitch($all).turnOn(true);
+            } else if (count === 0) {
+                lightswitch($all).turnOff(true);
+            } else {
+                lightswitch($all).turnIndeterminate(true);
+            }
+        });
+    })();
+    {% endjs %}
+{% endif %}
+
+{% css %}
+    /* Craft's element editor sets its "Enabled for all sites" label in bold. */
+    .primer-status-all label { font-weight: bold; }
+{% endcss %}

@@ -7,7 +7,9 @@
    - Saving in a slideout reloads the screen underneath.
    - `[data-primer-delete]`: confirm, delete; on a page with a real POST, so Craft redirects and shows the message
      there; in a slideout (only the ×: Craft leaves destructive ⋯ items out of slideouts) in the background, then the
-     slideout reloads. #}
+     slideout reloads.
+   - `.lightswitch[data-primer-toggle]` (index and section lines): switches the preset on or off for one site in
+     the background and shows Craft's message; the line dims while off. #}
 {% js %}
 (() => {
     if (window.primerNav) {
@@ -81,6 +83,24 @@
         if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
             deletePreset(this);
+        }
+    });
+
+    // A line's lightswitch: on or off for the screen's site; the line dims when off. On an error it flips back.
+    $(document).on('change', '.lightswitch[data-primer-toggle]', async function() {
+        const lightswitch = $(this).data('lightswitch');
+        const on = $(this).hasClass('on');
+        const $line = $(this).closest('li, tr');
+        $line.toggleClass('primer-off', !on);
+        try {
+            const { data } = await Craft.sendActionRequest('POST', 'primer/presets/toggle', {
+                data: { ...JSON.parse(this.dataset.primerToggle), enabled: on ? 1 : 0 },
+            });
+            Craft.cp.displaySuccess(data.message);
+        } catch (e) {
+            on ? lightswitch.turnOff(true) : lightswitch.turnOn(true);
+            $line.toggleClass('primer-off', on);
+            Craft.cp.displayError(e?.response?.data?.message);
         }
     });
 })();
