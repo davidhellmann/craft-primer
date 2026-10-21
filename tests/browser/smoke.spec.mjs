@@ -91,6 +91,29 @@ test.describe('navigation', () => {
     });
 });
 
+test.describe('layout', () => {
+    test('an entry type, its lightswitch and its × sit on one line, on the section page and the index', async ({ page }) => {
+        // Vertical centres within a pixel.
+        const seeOnOneLine = async (line, first) => {
+            const middle = async (locator) => {
+                const box = await locator.boundingBox();
+                return box.y + box.height / 2;
+            };
+            const expected = await middle(line.locator(first));
+            for (const other of ['.lightswitch', '[data-primer-delete]']) {
+                expect(Math.abs(await middle(line.locator(other)) - expected), other).toBeLessThanOrEqual(1);
+            }
+        };
+        await createPreset(page, 'pagesCustom', 'shopEn');
+
+        await page.goto('primer/sections/pagesCustom?site=shopEn');
+        await seeOnOneLine(page.locator('[data-primer-type="page"]'), '.primer-section-type');
+
+        await page.goto('primer?site=shopEn');
+        await seeOnOneLine(sectionRow(page, 'Pages (custom)').locator('li[data-preset]'), '.chip');
+    });
+});
+
 test.describe('saving', () => {
     test('a preset created in a slideout, with a field and a picked element, saves with the button', async ({ page }) => {
         await page.goto('primer?site=corporateEn');

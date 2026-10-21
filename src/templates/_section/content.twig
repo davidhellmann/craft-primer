@@ -74,7 +74,10 @@
 {% css %}
     .primer-section tbody th, .primer-section tbody td { vertical-align: middle; }
     .primer-section tbody th { width: 30%; }
-    .primer-section-type { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+    /* One box per cell, each centred in its row, so the link, the lightswitch and the × line up; inline, they sat
+       on the text baseline, and Craft pulls a lightswitch in a table 5px into the line below. */
+    .primer-section-type { display: flex; width: fit-content; align-items: center; gap: 8px; font-weight: 600; }
+    .primer-section td.thin > .lightswitch, .primer-section td.thin > .delete { display: block; margin-block: 0; }
     .primer-section-fields { display: flex; flex-wrap: wrap; gap: 4px 16px; }
     .primer-section-fields > span { display: inline-flex; align-items: center; gap: 6px; }
     /* A line switched off for this site. */
