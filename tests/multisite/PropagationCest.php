@@ -4,6 +4,7 @@ namespace davidhellmann\primer\tests\multisite;
 
 use Craft;
 use craft\elements\Entry;
+use craft\queue\Queue;
 use davidhellmann\primer\elements\Preset;
 use davidhellmann\primer\tests\Support\IntegrationTester;
 
@@ -72,7 +73,9 @@ class PropagationCest
         $I->preset('pagesAll', 'page', ['entriesSite' => [$french->id], 'usersSite' => [$I->admin()->id]], 'shopFr');
 
         // Craft's queue job brings the entry to Shop FR.
-        Craft::$app->getQueue()->run();
+        $queue = Craft::$app->getQueue();
+        $I->assertInstanceOf(Queue::class, $queue);
+        $queue->run();
 
         $inFrench = Entry::find()->id($entry->id)->site('shopFr')->status(null)->one();
         $I->assertNotNull($inFrench, 'Craft propagated the entry to Shop FR');
