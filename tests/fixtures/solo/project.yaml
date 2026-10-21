@@ -1,10 +1,20 @@
 # Single-site Craft Solo: one site group, one site. Primer is installed by the suite, not listed here.
+# The content model lives in the folders next to this file: News (Article with an Entries, Assets and Users
+# field each, Note), Topics, and an Images volume (in the temp dir, see `@primerTestAssets` in general.php).
 # system.schemaVersion must equal Craft's own schema version, or Craft refuses to install.
 dateModified: 1761004800
 email:
   fromEmail: primer@example.com
   fromName: Primer
   transportType: craft\mail\transportadapters\Sendmail
+fs:
+  images:
+    hasUrls: false
+    name: Images
+    settings:
+      path: '@primerTestAssets'
+    type: craft\fs\Local
+    url: null
 siteGroups:
   2f1d3c4e-5a6b-4c7d-8e9f-0a1b2c3d4e01:
     name: Primer
