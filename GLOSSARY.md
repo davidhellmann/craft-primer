@@ -8,6 +8,10 @@ A Craft CMS plugin that gives the relation fields of a new entry a starting sele
 The starting elements for the chosen relation fields of one entry type in one section, applied when an entry of that type is created. It spans the sites an entry of that section would and behaves like one: its values propagate and translate the way the entry's would, and it can be switched on or off per site. The choice of fields is the same everywhere.
 _Avoid_: Default, prefill, default relation
 
+**Scope**:
+The sites a preset spans: those a new entry of its section, created in the preset's site, would be saved to, except sites another preset of the same entry type already holds. One preset element per scope, so a section that doesn't propagate to every site has several presets of an entry type; they share their choice of fields, and every site belongs to one of them.
+_Avoid_: Site group (Craft's own term), propagation group
+
 **Relation field**:
 A field that relates entries, assets or users: an Entries, Assets or Users field. Primer treats them alike. Categories and Tags fields are not relation fields in Primer's sense.
 _Avoid_: Element field, reference field
