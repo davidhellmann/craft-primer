@@ -2,7 +2,7 @@
 
 # Primer
 
-Presets for the relation fields of new entries in Craft CMS. An editor creates a *News › Article*, and its Topics, Authors and Hero Image fields already hold what the site usually wants there. Primer fills them once, when the entry is created, writes only into empty fields, and never touches the entry again.
+Set the right defaults for your entries, if needed. Primer holds presets for the relation fields of new entries in Craft CMS. An editor creates a *News › Article*, and its Topics, Authors and Hero Image fields already hold what the site usually wants there. Primer fills them once, when the entry is created, writes only into empty fields, and never touches the entry again.
 
 ![The Primer index: sections, their entry types with a preset, and a switch for each in this site](resources/screenshot-index.png)
 
