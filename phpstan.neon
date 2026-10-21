@@ -13,3 +13,5 @@ parameters:
         analyseAndScan:
             - tests/_craft/storage/*
             - tests/_output/*
+            - tests/browser/storage/*
+            - tests/browser/web/cpresources/*

@@ -1,5 +1,6 @@
 # Runs the code checks and the unit suite, then installs Primer into a fresh Craft on MySQL and Postgres
 # and runs the integration suites (single-site Solo and multi-site Pro), on every push and pull request.
+# The browser job installs the multi-site Craft on MySQL, serves it and drives the control panel with Playwright.
 
 name: CI
 
@@ -84,3 +85,48 @@ jobs:
       - run: composer show craftcms/cms | grep '^versions'
       - run: composer test -- integration
       - run: composer test -- multisite
+
+  browser:
+    name: Browser smoke (MySQL)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: secret
+          MYSQL_DATABASE: primer_browser
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -psecret"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      CRAFT_DB_DRIVER: mysql
+      CRAFT_DB_SERVER: 127.0.0.1
+      CRAFT_DB_PORT: 3306
+      CRAFT_DB_DATABASE: primer_browser
+      CRAFT_DB_USER: root
+      CRAFT_DB_PASSWORD: secret
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, intl, mbstring, pdo, pdo_mysql, zip
+          coverage: none
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: composer update --no-interaction --no-progress
+      - run: composer show craftcms/cms | grep '^versions'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # Installs the test Craft (tests/browser/install.sh), serves it with `php craft serve`, runs the suite.
+      - run: npm test
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            tests/browser/report
+            tests/browser/test-results

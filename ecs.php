@@ -15,6 +15,8 @@ return static function(ECSConfig $ecsConfig): void {
     $ecsConfig->skip([
         __DIR__ . '/tests/_craft/storage/*',
         __DIR__ . '/tests/_output/*',
+        __DIR__ . '/tests/browser/storage/*',
+        __DIR__ . '/tests/browser/web/cpresources/*',
         __DIR__ . '/tests/Support/_generated/*',
     ]);
 

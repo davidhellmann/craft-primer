@@ -1,0 +1,8 @@
+# Written by the install script, the served Craft and Playwright
+/config/project/
+/storage/*
+!/storage/.gitkeep
+/web/cpresources/
+/test-results/
+/report/
+/config/license.key

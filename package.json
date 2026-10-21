@@ -1,0 +1,13 @@
+{
+  "private": true,
+  "description": "Only for the browser smoke suite. Primer itself needs no Node.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1"
+  }
+}
