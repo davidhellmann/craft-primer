@@ -15,3 +15,7 @@ _Avoid_: Element field, reference field
 **Shared field**:
 A relation field whose relations are not managed per site, so every site a preset spans holds the same value.
 _Avoid_: Global field, non-localized field
+
+**Content Block**:
+Craft's Content Block field. A preset holds one whose own layout has relation fields (first level only), chosen as a whole; inside the preset it shows and holds only those relation fields.
+_Avoid_: Block field, nested field

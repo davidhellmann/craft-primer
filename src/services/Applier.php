@@ -6,10 +6,12 @@ use Craft;
 use craft\base\Element;
 use craft\db\Query;
 use craft\db\Table;
+use craft\elements\ContentBlock as ContentBlockElement;
 use craft\elements\db\ElementQueryInterface;
 use craft\elements\Entry;
 use craft\fieldlayoutelements\CustomField;
 use craft\fields\BaseRelationField;
+use craft\fields\ContentBlock;
 use craft\models\FieldLayout;
 use davidhellmann\primer\decisions\ApplyDecision;
 use davidhellmann\primer\decisions\Truncation;
@@ -19,8 +21,9 @@ use yii\base\Component;
 use yii\base\InvalidConfigException;
 
 /**
- * Fills the empty chosen relation fields of an entry that is being created or switched to another entry type,
- * from the preset of its section, entry type and site (spec section 5). Craft then saves and propagates the entry as usual.
+ * Fills the empty chosen relation fields of an entry that is being created or switched to another entry type, also
+ * those inside a chosen Content Block, from the preset of its section, entry type and site (spec section 5). Craft
+ * then saves and propagates the entry as usual.
  */
 class Applier extends Component
 {
@@ -98,24 +101,72 @@ class Applier extends Component
 
         $filled = [];
         foreach ($preset->getChosenFieldElements() as $source) {
-            $target = $this->relationFieldElement($layout, $source->uid);
+            $target = $this->fieldElement($layout, $source->uid);
             if (!$target) {
                 continue;
             }
 
             $handle = $target->attribute();
-            if (!$entry->isFieldEmpty($handle)) {
-                continue;
-            }
+            $value = $preset->getFieldValue($source->attribute());
+            $field = $target->getField();
+            $didFill = $field instanceof ContentBlock
+                ? $this->fillBlock($entry, $handle, $value, $field)
+                : $this->fillField($entry, $handle, $value, $target);
 
-            $ids = $this->ids($preset->getFieldValue($source->attribute()), $target);
-            if ($ids) {
-                $entry->setFieldValue($handle, $ids);
+            if ($didFill) {
                 $filled[] = $handle;
             }
         }
 
         return $filled;
+    }
+
+    /**
+     * Fills an empty relation field with the preset's elements.
+     */
+    private function fillField(Entry $entry, string $handle, mixed $value, CustomField $target): bool
+    {
+        if (!$entry->isFieldEmpty($handle)) {
+            return false;
+        }
+
+        $ids = $this->ids($value, $target);
+        if ($ids) {
+            $entry->setFieldValue($handle, $ids);
+        }
+
+        return (bool)$ids;
+    }
+
+    /**
+     * Fills the empty relation fields of the entry's Content Block with the preset block's elements.
+     *
+     * The block is set through its array form, which builds a fresh block: the block's current values go along,
+     * or what an import or the editor already put in the block would be lost.
+     */
+    private function fillBlock(Entry $entry, string $handle, mixed $value, ContentBlock $field): bool
+    {
+        $block = $entry->getFieldValue($handle);
+        if (!$value instanceof ContentBlockElement || !$block instanceof ContentBlockElement) {
+            return false;
+        }
+
+        $values = [];
+        foreach (Preset::innerRelationElements($field) as $inner) {
+            $innerHandle = $inner->attribute();
+            if ($block->isFieldEmpty($innerHandle)) {
+                $ids = $this->ids($value->getFieldValue($innerHandle), $inner);
+                if ($ids) {
+                    $values[$innerHandle] = $ids;
+                }
+            }
+        }
+
+        if ($values) {
+            $entry->setFieldValue($handle, ['fields' => array_merge($block->getSerializedFieldValues(), $values)]);
+        }
+
+        return (bool)$values;
     }
 
     /**
@@ -144,13 +195,13 @@ class Applier extends Component
     }
 
     /**
-     * The entry's layout element with the preset's UID, if it is still a relation field there.
+     * The entry's layout element with the preset's UID, if it is still a field a preset can hold.
      */
-    private function relationFieldElement(FieldLayout $layout, string $uid): ?CustomField
+    private function fieldElement(FieldLayout $layout, string $uid): ?CustomField
     {
         $element = $layout->getElementByUid($uid);
 
-        return $element instanceof CustomField && Preset::isRelationField($element->getField()) ? $element : null;
+        return $element instanceof CustomField && Preset::canHold($element->getField()) ? $element : null;
     }
 
     /**

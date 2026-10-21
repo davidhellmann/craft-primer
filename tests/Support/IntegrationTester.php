@@ -145,7 +145,8 @@ class IntegrationTester extends Actor
     /**
      * A saved preset with the given fields chosen and filled.
      *
-     * @param array<string, int[]> $values Element IDs by field handle; each handle is chosen.
+     * @param array<string, mixed> $values Element IDs by field handle, or a Content Block's array form
+     *     (`['fields' => [innerHandle => IDs]]`); each handle is chosen.
      * @param string|null $siteHandle The site it is created in; the primary site by default.
      */
     public function preset(string $sectionHandle, string $typeHandle, array $values = [], ?string $siteHandle = null): Preset

@@ -1,0 +1,101 @@
+columnSuffix: null
+handle: teaser
+instructions: null
+name: Teaser
+searchable: false
+settings:
+  fieldLayouts:
+    __assoc__:
+      -
+        - d2f9aafd-0bd1-4971-a8a7-8d6fc26a56f2
+        -
+          __assoc__:
+            0:
+              - tabs
+              -
+                -
+                  __assoc__:
+                    0:
+                      - name
+                      - Content
+                    1:
+                      - uid
+                      - 298a1c36-009f-43ef-93ba-f92bd3bb6995
+                    4:
+                      - elements
+                      -
+                        -
+                          __assoc__:
+                            0:
+                              - type
+                              - craft\fieldlayoutelements\CustomField
+                            7:
+                              - required
+                              - false
+                            8:
+                              - width
+                              - 100
+                            10:
+                              - uid
+                              - 148d9663-57a7-4a6a-bd61-2c6dfae090fe
+                            13:
+                              - fieldUid
+                              - c47c1fc1-3b67-40a7-824a-57b2da893eb6 # Teaser entries (none)
+                        -
+                          __assoc__:
+                            0:
+                              - type
+                              - craft\fieldlayoutelements\CustomField
+                            7:
+                              - required
+                              - false
+                            8:
+                              - width
+                              - 100
+                            10:
+                              - uid
+                              - 0e16cda7-b5b7-4060-9854-61aae5df5869
+                            13:
+                              - fieldUid
+                              - fb277690-d528-4962-8f4c-4cad290b6255 # Teaser assets (site)
+                        -
+                          __assoc__:
+                            0:
+                              - type
+                              - craft\fieldlayoutelements\CustomField
+                            7:
+                              - required
+                              - false
+                            8:
+                              - width
+                              - 100
+                            10:
+                              - uid
+                              - de4bb67f-732f-46e1-bd57-314ac1821e59
+                            13:
+                              - fieldUid
+                              - fd76bcee-96c3-4769-bec5-b52919ea92f1 # Teaser users (language)
+                        -
+                          __assoc__:
+                            0:
+                              - type
+                              - craft\fieldlayoutelements\CustomField
+                            7:
+                              - required
+                              - false
+                            8:
+                              - width
+                              - 100
+                            10:
+                              - uid
+                              - 8fb0ebf7-ecd7-4e59-a5ed-4277f1806578
+                            13:
+                              - fieldUid
+                              - d4578a77-eb77-4b0a-8aa4-3b12031fa1fc # Teaser text
+            4:
+              - cardThumbAlignment
+              - end
+  viewMode: grouped
+translationKeyFormat: null
+translationMethod: site
+type: craft\fields\ContentBlock

@@ -1,9 +1,9 @@
 {# The preset screen's content: the chosen fields, each rendered by Craft as on an entry, and "+ Add field" below.
-   Rendered inside the CP screen, so inputs are namespaced and the script uses data attributes only. Every relation
-   field is rendered; the ones not chosen stay hidden, and the preset drops their values on save. #}
+   Rendered inside the CP screen, so inputs are namespaced and the script uses data attributes only. Every field
+   of the preset's layout is rendered; the ones not chosen stay hidden, and the preset drops their values on save. #}
 {% set token = random() %}
 {% set chosenUids = preset.getChosenFieldElements()|map(element => element.uid) %}
-{% set elements = preset.getRelationFieldElements() %}
+{% set elements = preset.getLayoutFieldElements() %}
 
 {{ hiddenInput('siteId', preset.siteId ?? site.id) }}
 {% if preset.id %}
