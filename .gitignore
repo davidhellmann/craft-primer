@@ -1,0 +1,16 @@
+*.DS_Store
+*.idea/*
+/.phpactor.json
+*.log
+*Thumbs.db
+.phpunit.cache
+.env
+/node_modules
+/vendor
+composer.lock
+/.claude/worktrees/
+
+# Personal agent workflow: tickets, specs and skill settings stay on this machine
+/.scratch/
+/docs/agents/
+/CLAUDE.local.md
