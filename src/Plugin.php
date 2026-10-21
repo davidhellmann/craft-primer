@@ -2,13 +2,17 @@
 
 namespace davidhellmann\primer;
 
+use Craft;
 use craft\base\Element;
 use craft\base\Plugin as BasePlugin;
 use craft\elements\Entry;
+use craft\events\EntryTypeEvent;
 use craft\events\ModelEvent;
 use craft\events\RegisterComponentTypesEvent;
 use craft\events\RegisterUrlRulesEvent;
 use craft\services\Elements;
+use craft\services\Entries;
+use craft\services\Gc;
 use craft\web\UrlManager;
 use davidhellmann\primer\elements\Preset;
 use davidhellmann\primer\services\Applier;
@@ -59,6 +63,16 @@ class Plugin extends BasePlugin
             /** @var Entry $entry */
             $entry = $event->sender;
             $this->applier->apply($entry, $event->isNew);
+        });
+
+        // A preset whose section or entry type is deleted loses its row (FK cascade); GC removes the element.
+        Event::on(Gc::class, Gc::EVENT_RUN, function() {
+            Craft::$app->getGc()->deletePartialElements(Preset::class, Preset::TABLE, 'id');
+        });
+
+        // A field that left an entry type's layout takes its preset values along.
+        Event::on(Entries::class, Entries::EVENT_AFTER_SAVE_ENTRY_TYPE, function(EntryTypeEvent $event) {
+            $this->presets->forgetFieldsNotInLayout($event->entryType);
         });
 
         // A preset saved or deleted in this request is the one the next new entry should get.
