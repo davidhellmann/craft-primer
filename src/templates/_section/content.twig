@@ -1,5 +1,6 @@
 {# The section page's content, as a page or in a slideout: the section's entry types, each with the fields its preset
-   fills, and "+ Add preset" for the ones without. Entry type icons take the type's own colour or stay neutral; field
+   fills, and "+ Add preset" for the ones without, or "Only in … so far" when their presets are in other scopes
+   only (the entry type's link starts this site's). Entry type icons take the type's own colour or stay neutral; field
    icons stay neutral, fields have no colour in Craft. #}
 <div class="tablepane">
     <table class="data fullwidth primer-section">
@@ -11,14 +12,16 @@
             </tr>
         </thead>
         <tbody>
+            {# A slideout request has no `?site=` of its own: the screen's params carry it. #}
+            {% set siteParam = craft.app.isMultiSite ? { site: site.handle } : {} %}
             {% for row in types %}
                 {% set type = row.type %}
                 {% set preset = row.preset %}
                 {% set typeName = type.name|t('site') %}
                 {# A type with a preset opens it; one without opens a new preset. #}
                 {% set screen = preset
-                    ? { url: url('primer/presets/' ~ preset.id), params: { presetId: preset.id } }
-                    : { url: url('primer/presets/new', { sectionId: section.id, typeId: type.id }), params: { sectionId: section.id, typeId: type.id } } %}
+                    ? { url: url('primer/presets/' ~ preset.id), params: { presetId: preset.id }|merge(siteParam) }
+                    : { url: url('primer/presets/new', { sectionId: section.id, typeId: type.id }), params: { sectionId: section.id, typeId: type.id }|merge(siteParam) } %}
                 {% set nav = { action: 'primer/presets/edit', params: screen.params }|json_encode %}
                 <tr data-primer-type="{{ type.handle }}">
                     <th scope="row">
@@ -41,6 +44,8 @@
                                     <span class="light">{{ 'No fields yet'|t('primer') }}</span>
                                 {% endfor %}
                             </div>
+                        {% elseif row.otherSites %}
+                            <span class="light">{{ 'Only in {sites} so far'|t('primer', { sites: row.otherSites }) }}</span>
                         {% else %}
                             <a class="btn small dashed add icon" href="{{ screen.url }}" data-primer-nav="{{ nav }}">
                                 {{- 'Add preset'|t('primer') -}}

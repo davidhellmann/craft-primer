@@ -298,14 +298,24 @@ class Preset extends Element
         return $user->can('accessPlugin-primer');
     }
 
+    /**
+     * Saving needs the user to edit the preset's site; Craft then propagates it through the scope, as for entries.
+     */
     public function canSave(User $user): bool
     {
-        return $user->can('accessPlugin-primer');
+        return $user->can('accessPlugin-primer') && $this->canEditSite($user);
     }
 
     public function canDelete(User $user): bool
     {
-        return $user->can('accessPlugin-primer');
+        return $user->can('accessPlugin-primer') && $this->canEditSite($user);
+    }
+
+    private function canEditSite(User $user): bool
+    {
+        $site = Craft::$app->getSites()->getSiteById($this->siteId ?? Craft::$app->getSites()->getPrimarySite()->id, true);
+
+        return $site !== null && $user->can("editSite:$site->uid");
     }
 
     public function beforeSave(bool $isNew): bool

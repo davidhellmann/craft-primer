@@ -1,9 +1,27 @@
 {# The index: every section of the site, its entry types with a preset as Craft's entry type chips, and
-   "+ Add entry type" for the ones without. Sections and chips open their page on click and their slideout on
-   double-click (`_nav`). #}
+   "+ Add entry type" for the ones without; an entry type whose presets are in other scopes only says where.
+   Every link stays in the site picked in Craft's site menu. Sections and chips open their page on click and their
+   slideout on double-click (`_nav`). #}
 {% extends '_layouts/cp' %}
 
 {% set title = 'Primer'|t('primer') %}
+
+{# Craft's site menu, as on its element indexes: the sites the user may edit. #}
+{% if craft.app.isMultiSite %}
+    {% set crumbs = [{
+        id: 'site-crumb',
+        icon: 'world',
+        iconAltText: 'Site'|t('app'),
+        label: site.name|t('site'),
+        menu: {
+            items: siteMenuItems(null, site),
+            label: 'Select site'|t('app'),
+        },
+    }] %}
+{% endif %}
+
+{# A slideout request has no `?site=` of its own: the screen's params carry it. #}
+{% set siteParam = craft.app.isMultiSite ? { site: site.handle } : {} %}
 
 {% block content %}
     <div class="tablepane">
@@ -19,7 +37,7 @@
                     <tr data-section="{{ row.section.handle }}">
                         <th scope="row">
                             <a href="{{ url('primer/sections/' ~ row.section.handle) }}"
-                               data-primer-nav="{{ { action: 'primer/presets/section', params: { sectionHandle: row.section.handle }, form: false }|json_encode }}">
+                               data-primer-nav="{{ { action: 'primer/presets/section', params: { sectionHandle: row.section.handle }|merge(siteParam), form: false }|json_encode }}">
                                 {{- row.section.name|t('site') -}}
                             </a>
                         </th>
@@ -28,17 +46,31 @@
                                 {% if row.presets %}
                                     <ul class="primer-index-presets">
                                         {% for item in row.presets %}
-                                            <li data-preset="{{ item.preset.id }}">
-                                                <a class="primer-index-chip"
-                                                   href="{{ url('primer/presets/' ~ item.preset.id) }}"
-                                                   data-primer-nav="{{ { action: 'primer/presets/edit', params: { presetId: item.preset.id } }|json_encode }}">
-                                                    {{ item.chipHtml|raw }}
-                                                </a>
-                                                <span class="light smalltext">
-                                                    {{- '{count, plural, =1{# field} other{# fields}}'|t('primer', { count: item.fieldCount }) -}}
-                                                </span>
-                                                {% include 'primer/_delete' with { attributes: item.delete } only %}
-                                            </li>
+                                            {% if item.preset %}
+                                                <li data-preset="{{ item.preset.id }}">
+                                                    <a class="primer-index-chip"
+                                                       href="{{ url('primer/presets/' ~ item.preset.id) }}"
+                                                       data-primer-nav="{{ { action: 'primer/presets/edit', params: { presetId: item.preset.id }|merge(siteParam) }|json_encode }}">
+                                                        {{ item.chipHtml|raw }}
+                                                    </a>
+                                                    <span class="light smalltext">
+                                                        {{- '{count, plural, =1{# field} other{# fields}}'|t('primer', { count: item.fieldCount }) -}}
+                                                    </span>
+                                                    {% include 'primer/_delete' with { attributes: item.delete } only %}
+                                                </li>
+                                            {% else %}
+                                                {# Presets in other scopes only: the chip starts this site's preset. #}
+                                                <li>
+                                                    <a class="primer-index-chip"
+                                                       href="{{ url('primer/presets/new', { sectionId: row.section.id, typeId: item.type.id }) }}"
+                                                       data-primer-nav="{{ { action: 'primer/presets/edit', params: { sectionId: row.section.id, typeId: item.type.id }|merge(siteParam) }|json_encode }}">
+                                                        {{ item.chipHtml|raw }}
+                                                    </a>
+                                                    <span class="light smalltext">
+                                                        {{- 'Only in {sites} so far'|t('primer', { sites: item.otherSites }) -}}
+                                                    </span>
+                                                </li>
+                                            {% endif %}
                                         {% endfor %}
                                     </ul>
                                 {% endif %}

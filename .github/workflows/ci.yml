@@ -1,5 +1,5 @@
 # Runs the code checks and the unit suite, then installs Primer into a fresh Craft on MySQL and Postgres
-# and runs the integration suite, on every push and pull request.
+# and runs the integration suites (single-site Solo and multi-site Pro), on every push and pull request.
 
 name: CI
 
@@ -83,3 +83,4 @@ jobs:
       - run: composer update --no-interaction --no-progress ${{ matrix.composer }}
       - run: composer show craftcms/cms | grep '^versions'
       - run: composer test -- integration
+      - run: composer test -- multisite

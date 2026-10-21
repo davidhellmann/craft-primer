@@ -23,4 +23,5 @@ modules:
           setupCraft: true
     - \davidhellmann\primer\tests\Support\Helper\FixtureEdition
     - \davidhellmann\primer\tests\Support\Helper\FormPost
+    - \davidhellmann\primer\tests\Support\Helper\FreshRequest
     - Asserts

@@ -121,6 +121,28 @@ class IntegrationTester extends Actor
     }
 
     /**
+     * A control panel user who may use Primer and edit the given sites, and nothing else. Needs Craft Pro.
+     *
+     * @param string[] $siteHandles
+     */
+    public function editor(array $siteHandles): User
+    {
+        $user = new User([
+            'active' => true,
+            'username' => 'editor',
+            'email' => 'editor@example.com',
+        ]);
+        $this->saveElement($user);
+        Craft::$app->getUserPermissions()->saveUserPermissions($user->id, [
+            'accessCp',
+            'accessPlugin-primer',
+            ...array_map(fn(string $handle) => 'editSite:' . $this->site($handle)->uid, $siteHandles),
+        ]);
+
+        return $user;
+    }
+
+    /**
      * A saved preset with the given fields chosen and filled.
      *
      * @param array<string, int[]> $values Element IDs by field handle; each handle is chosen.

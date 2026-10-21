@@ -21,5 +21,6 @@ modules:
           clean: true
           setupCraft: true
     - \davidhellmann\primer\tests\Support\Helper\FixtureEdition
-    - \davidhellmann\primer\tests\Support\Helper\RequestedSite
+    - \davidhellmann\primer\tests\Support\Helper\FormPost
+    - \davidhellmann\primer\tests\Support\Helper\FreshRequest
     - Asserts

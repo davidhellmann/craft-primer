@@ -7,8 +7,10 @@ use craft\helpers\Cp;
 use craft\helpers\UrlHelper;
 use craft\models\EntryType;
 use craft\models\Section;
+use craft\models\Site;
 use craft\web\Controller;
 use davidhellmann\primer\elements\Preset;
+use davidhellmann\primer\Plugin;
 use yii\web\BadRequestHttpException;
 use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
@@ -35,11 +37,17 @@ class PresetsController extends Controller
      */
     public function actionIndex(): Response
     {
-        $site = Cp::requestedSite() ?? Craft::$app->getSites()->getPrimarySite();
+        $site = $this->requestedSite();
 
         $presets = [];
         foreach (Preset::find()->siteId($site->id)->all() as $preset) {
             $presets["$preset->sectionId:$preset->typeId"] = $preset;
+        }
+
+        // The sites with a preset, for entry types whose presets are in other scopes only.
+        $elsewhere = [];
+        foreach (Preset::find()->site('*')->all() as $preset) {
+            $elsewhere["$preset->sectionId:$preset->typeId"][$preset->siteId] = true;
         }
 
         $sections = [];
@@ -51,14 +59,16 @@ class PresetsController extends Controller
             $withPreset = [];
             $withoutPreset = [];
             foreach ($section->getEntryTypes() as $type) {
-                $preset = $presets["$section->id:$type->id"] ?? null;
-                if ($preset) {
+                $key = "$section->id:$type->id";
+                $preset = $presets[$key] ?? null;
+                if ($preset || isset($elsewhere[$key])) {
                     $withPreset[] = [
                         'type' => $type,
                         'preset' => $preset,
                         'chipHtml' => Cp::chipHtml($type, ['hyperlink' => false]),
-                        'fieldCount' => count($preset->getChosenFieldElements()),
-                        'delete' => $this->deleteAttributes($preset, Craft::t('site', $type->name), UrlHelper::cpUrl('primer')),
+                        'fieldCount' => $preset ? count($preset->getChosenFieldElements()) : null,
+                        'otherSites' => $preset ? null : $this->siteNames(array_keys($elsewhere[$key])),
+                        'delete' => $preset ? $this->deleteAttributes($preset, Craft::t('site', $type->name), UrlHelper::cpUrl('primer', $this->siteParams($site))) : null,
                     ];
                 } else {
                     $withoutPreset[] = $type;
@@ -84,7 +94,7 @@ class PresetsController extends Controller
      */
     public function actionSection(string $sectionHandle): Response
     {
-        $site = Cp::requestedSite() ?? Craft::$app->getSites()->getPrimarySite();
+        $site = $this->requestedSite();
         $section = Craft::$app->getEntries()->getSectionByHandle($sectionHandle)
             ?? throw new NotFoundHttpException('Section not found');
 
@@ -93,14 +103,21 @@ class PresetsController extends Controller
             $presets[$preset->typeId] = $preset;
         }
 
+        // The sites with a preset, for entry types whose presets are in other scopes only.
+        $elsewhere = [];
+        foreach (Preset::find()->sectionId($section->id)->site('*')->all() as $preset) {
+            $elsewhere[$preset->typeId][$preset->siteId] = true;
+        }
+
         $types = [];
         foreach ($section->getEntryTypes() as $type) {
             $preset = $presets[$type->id] ?? null;
             $types[] = [
                 'type' => $type,
                 'preset' => $preset,
+                'otherSites' => !$preset && isset($elsewhere[$type->id]) ? $this->siteNames(array_keys($elsewhere[$type->id])) : null,
                 'delete' => $preset
-                    ? $this->deleteAttributes($preset, Craft::t('site', $type->name), $this->sectionUrl($section))
+                    ? $this->deleteAttributes($preset, Craft::t('site', $type->name), $this->sectionUrl($section, $site))
                     : null,
             ];
         }
@@ -109,10 +126,12 @@ class PresetsController extends Controller
 
         $response = $this->asCpScreen()
             ->title($sectionName)
+            ->site($site)
+            ->selectableSites($this->selectableSites($section))
             ->crumbs([
-                ['label' => Craft::t('primer', 'Primer'), 'url' => 'primer'],
+                ['label' => Craft::t('primer', 'Primer'), 'url' => UrlHelper::cpUrl('primer', $this->siteParams($site))],
             ])
-            ->editUrl($this->sectionUrl($section))
+            ->editUrl($this->sectionUrl($section, $site))
             ->contentTemplate('primer/_section/content', [
                 'section' => $section,
                 'types' => $types,
@@ -135,48 +154,50 @@ class PresetsController extends Controller
      */
     public function actionEdit(?int $presetId = null, ?Preset $preset = null): Response
     {
-        $site = Cp::requestedSite() ?? Craft::$app->getSites()->getPrimarySite();
+        $site = $this->requestedSite();
 
         if (!$preset) {
             if ($presetId) {
-                $preset = Preset::find()->id($presetId)->siteId($site->id)->one()
-                    ?? throw new NotFoundHttpException('Preset not found');
+                $preset = Preset::find()->id($presetId)->siteId($site->id)->one();
+                if (!$preset) {
+                    // Another scope's preset, after a switch in the site menu: this site's preset of the entry type.
+                    $other = Preset::find()->id($presetId)->site('*')->one()
+                        ?? throw new NotFoundHttpException('Preset not found');
+                    [$section, $type] = $this->sectionAndType((int)$other->sectionId, (int)$other->typeId);
+                    $preset = $this->presetInSite($section, $type, $site);
+                }
             } else {
                 [$section, $type] = $this->sectionAndType(
                     (int)$this->request->getRequiredQueryParam('sectionId'),
                     (int)$this->request->getRequiredQueryParam('typeId'),
                 );
+                $preset = $this->presetInSite($section, $type, $site);
+            }
 
-                // An entry type has one preset per section and site: open it if it exists.
-                $existing = Preset::find()->sectionId($section->id)->typeId($type->id)->siteId($site->id)->one();
-                if ($existing) {
-                    return $this->redirect(UrlHelper::cpUrl("primer/presets/$existing->id"));
-                }
-
-                $preset = new Preset([
-                    'siteId' => $site->id,
-                    'sectionId' => $section->id,
-                    'typeId' => $type->id,
-                ]);
+            // A page shows a saved preset under its own URL; a slideout just shows it.
+            if ($preset->id && $preset->id !== $presetId && !$this->inSlideout()) {
+                return $this->redirect(UrlHelper::cpUrl("primer/presets/$preset->id", $this->siteParams($site)));
             }
         }
 
         $section = $preset->getSection() ?? throw new NotFoundHttpException('Section not found');
         $type = $preset->getType() ?? throw new NotFoundHttpException('Entry type not found');
         $typeName = Craft::t('site', $type->name);
-        $sectionCrumb = $this->sectionCrumb($section);
+        $sectionCrumb = $this->sectionCrumb($section, $site);
 
         $response = $this->asCpScreen()
             ->title($preset->id ? $typeName : Craft::t('primer', 'New preset: {type}', ['type' => $typeName]))
+            ->site($site)
+            ->selectableSites($this->selectableSites($section))
             ->crumbs([
-                ['label' => Craft::t('primer', 'Primer'), 'url' => 'primer'],
+                ['label' => Craft::t('primer', 'Primer'), 'url' => UrlHelper::cpUrl('primer', $this->siteParams($site))],
                 ['label' => $sectionCrumb['label'], 'url' => $sectionCrumb['url']],
             ])
             ->action('primer/presets/save')
-            ->redirectUrl('primer')
+            ->redirectUrl(UrlHelper::cpUrl('primer', $this->siteParams($site)))
             ->submitButtonLabel(Craft::t('app', 'Save'))
             ->addAltAction(Craft::t('app', 'Save and continue editing'), [
-                'redirect' => 'primer/presets/{id}',
+                'redirect' => UrlHelper::cpUrl('primer/presets/{id}', $this->siteParams($site)),
                 'shortcut' => true,
                 'retainScroll' => true,
             ])
@@ -197,9 +218,9 @@ class PresetsController extends Controller
 
         if ($preset->id) {
             $response
-                ->editUrl(UrlHelper::cpUrl("primer/presets/$preset->id"))
+                ->editUrl(UrlHelper::cpUrl("primer/presets/$preset->id", $this->siteParams($site)))
                 ->actionMenuItems(fn() => [
-                    $this->deleteMenuItem($preset, $typeName, $section),
+                    $this->deleteMenuItem($preset, $typeName, $section, $site),
                 ]);
         }
 
@@ -256,20 +277,22 @@ class PresetsController extends Controller
         }
 
         $section = $preset->getSection();
+        $site = $preset->getSite();
         $this->deletePreset($preset);
 
         return $this->asSuccess(
             Craft::t('primer', 'Preset deleted.'),
-            redirect: $this->getPostedRedirectUrl() ?? ($section ? $this->sectionUrl($section) : UrlHelper::cpUrl('primer')),
+            redirect: $this->getPostedRedirectUrl()
+                ?? ($section ? $this->sectionUrl($section, $site) : UrlHelper::cpUrl('primer', $this->siteParams($site))),
         );
     }
 
     /**
-     * The one place a preset is deleted. Ticket 14 widens it to the presets of every scope.
+     * The one place a preset is deleted: with the presets of its entry type in every other scope.
      */
     private function deletePreset(Preset $preset): void
     {
-        Craft::$app->getElements()->deleteElement($preset, true);
+        Plugin::getInstance()->presets->deleteInAllScopes($preset);
     }
 
     /**
@@ -281,9 +304,9 @@ class PresetsController extends Controller
         return $this->request->getAcceptsJson();
     }
 
-    private function sectionUrl(Section $section): string
+    private function sectionUrl(Section $section, Site $site): string
     {
-        return UrlHelper::cpUrl("primer/sections/$section->handle");
+        return UrlHelper::cpUrl("primer/sections/$section->handle", $this->siteParams($site));
     }
 
     /**
@@ -291,14 +314,14 @@ class PresetsController extends Controller
      *
      * @return array{label: string, url: string, nav: array<string, mixed>}
      */
-    private function sectionCrumb(Section $section): array
+    private function sectionCrumb(Section $section, Site $site): array
     {
         return [
             'label' => Craft::t('site', $section->name),
-            'url' => $this->sectionUrl($section),
+            'url' => $this->sectionUrl($section, $site),
             'nav' => [
                 'action' => 'primer/presets/section',
-                'params' => ['sectionHandle' => $section->handle],
+                'params' => ['sectionHandle' => $section->handle] + $this->siteParams($site),
                 'form' => false,
             ],
         ];
@@ -310,13 +333,13 @@ class PresetsController extends Controller
      *
      * @return array<string, mixed>
      */
-    private function deleteMenuItem(Preset $preset, string $name, Section $section): array
+    private function deleteMenuItem(Preset $preset, string $name, Section $section, Site $site): array
     {
         return [
             'icon' => 'trash',
             'label' => Craft::t('primer', 'Delete preset'),
             'destructive' => true,
-            'attributes' => $this->deleteAttributes($preset, $name, $this->sectionUrl($section)),
+            'attributes' => $this->deleteAttributes($preset, $name, $this->sectionUrl($section, $site)),
         ];
     }
 
@@ -344,6 +367,82 @@ class PresetsController extends Controller
     private function slideoutCrumbs(array $crumbs): string
     {
         return $this->getView()->renderTemplate('primer/_slideout-crumbs', ['crumbs' => $crumbs]);
+    }
+
+    /**
+     * The site the screen is about, from `?site=`: one the user may edit. Craft falls back to another editable site.
+     */
+    private function requestedSite(): Site
+    {
+        return Cp::requestedSite() ?? throw new ForbiddenHttpException('User not authorized to edit content in any sites.');
+    }
+
+    /**
+     * The `site` param of a URL that has to stay in the site even when the current request has none, such as a
+     * redirect after a POST. Craft adds it to every other CP URL on a multi-site install.
+     *
+     * @return array<string, string>
+     */
+    private function siteParams(Site $site): array
+    {
+        return Craft::$app->getIsMultiSite() ? ['site' => $site->handle] : [];
+    }
+
+    /**
+     * The sites of Craft's site menu on a section's screens: those of the section the user may edit.
+     *
+     * @return Site[]
+     */
+    private function selectableSites(Section $section): array
+    {
+        $siteSettings = $section->getSiteSettings();
+
+        return array_values(array_filter(
+            Craft::$app->getSites()->getEditableSites(),
+            fn(Site $site) => isset($siteSettings[$site->id]),
+        ));
+    }
+
+    /**
+     * The site's preset of a section's entry type, or a new one, which starts with the field choice of the presets
+     * in the other scopes.
+     */
+    private function presetInSite(Section $section, EntryType $type, Site $site): Preset
+    {
+        $existing = Preset::find()->sectionId($section->id)->typeId($type->id)->siteId($site->id)->one();
+        if ($existing) {
+            return $existing;
+        }
+
+        if (!isset($section->getSiteSettings()[$site->id])) {
+            throw new NotFoundHttpException('The section isn’t enabled for this site.');
+        }
+
+        $preset = new Preset([
+            'siteId' => $site->id,
+            'sectionId' => $section->id,
+            'typeId' => $type->id,
+        ]);
+        $preset->setFieldUids(Plugin::getInstance()->presets->fieldUids($section->id, $type->id));
+
+        return $preset;
+    }
+
+    /**
+     * The sites' names in Craft's site order, as one list.
+     *
+     * @param int[] $siteIds
+     */
+    private function siteNames(array $siteIds): string
+    {
+        $names = [];
+        foreach (Craft::$app->getSites()->getAllSites(true) as $site) {
+            if (in_array($site->id, $siteIds, true)) {
+                $names[] = Craft::t('site', $site->name);
+            }
+        }
+
+        return implode(', ', $names);
     }
 
     /**
