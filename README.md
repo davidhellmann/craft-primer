@@ -54,6 +54,10 @@ Primer fills a new entry once, and only its empty fields. That has a few consequ
 - Existing entries aren't filled. Primer acts when an entry is created or switches type, never afterwards.
 - Primer fills the site an entry is saved in. Craft then propagates the entry to its other sites, as always; a site enabled later gets what Craft copies, not a preset.
 
+**Logging.** Each entry Primer fills gets one info line in Craft's log, naming the fields. A preset that can't be applied never stops the entry's save: Primer logs a warning and the entry saves without it.
+
+**No copying between sites.** Unlike an entry's fields, a preset's have no *Copy value from site…* in their ⋯ menu. Switch to the other site and pick the elements there.
+
 **Custom propagation.** In a section with *Custom* propagation, a preset spans only the site it was made in, so every site needs its own. The control panel doesn't say so.
 
 **Not covered.** Categories and Tags fields; entries nested in Matrix or CKEditor fields; Content Blocks inside Content Blocks. A preset holds fields placed directly in the entry type's layout, and Content Blocks one level deep.

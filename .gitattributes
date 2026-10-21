@@ -14,6 +14,7 @@ ecs.php export-ignore
 package-lock.json export-ignore
 package.json export-ignore
 phpstan.neon export-ignore
+playwright.config.mjs export-ignore
 resources/ export-ignore
 tests/ export-ignore
 

@@ -8,3 +8,4 @@
 - Presets that span the sites a new entry of their section would be saved to, follow Craft's propagation and translation methods, and switch on or off per site.
 - Control panel section with an index, a page per section and a screen per preset, each also as a slideout.
 - *Access Primer* permission; saving a preset in a site also needs permission to edit that site.
+- One info line in Craft's log for each entry Primer fills. A preset that can't be applied is logged as a warning and never stops the save.
