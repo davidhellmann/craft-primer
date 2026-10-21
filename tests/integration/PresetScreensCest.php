@@ -24,6 +24,8 @@ class PresetScreensCest
         $I->amOnPage('/admin/primer');
 
         $I->seeResponseCodeIs(200);
+        $I->see('Section', '.primer-index thead');
+        $I->see('Entry Types', '.primer-index thead');
         $I->see('News', '[data-section="news"]');
         $I->see('Topics', '[data-section="topics"]');
         // The preset's entry type as Craft's chip, with its field count.
