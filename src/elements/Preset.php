@@ -16,6 +16,7 @@ use craft\helpers\Json;
 use craft\models\EntryType;
 use craft\models\FieldLayout;
 use craft\models\Section;
+use davidhellmann\primer\decisions\Scope;
 use davidhellmann\primer\elements\db\PresetQuery;
 
 /**
@@ -126,17 +127,27 @@ class Preset extends Element
     }
 
     /**
-     * The sites the section is enabled in. Ticket 14 narrows this to the preset's scope.
+     * The preset's scope: the sites a new entry of its section, created in the preset's site, would be saved to.
      */
     public function getSupportedSites(): array
     {
+        $sites = Craft::$app->getSites();
+        $siteId = $this->siteId ?? $sites->getPrimarySite()->id;
         $section = $this->getSection();
-        if (!$section) {
-            // Without a section the save fails validation; Craft needs a site to get there.
-            return [$this->siteId ?? Craft::$app->getSites()->getPrimarySite()->id];
+
+        $sectionSites = [];
+        foreach (array_keys($section?->getSiteSettings() ?? []) as $id) {
+            $site = $sites->getSiteById($id, true);
+            if ($site) {
+                $sectionSites[$site->id] = ['groupId' => $site->groupId, 'language' => $site->language];
+            }
         }
 
-        return array_keys($section->getSiteSettings());
+        $siteIds = $section ? Scope::siteIds($section->propagationMethod, $siteId, $sectionSites) : [];
+
+        // Without a section, or in a site the section isn't enabled for, the save fails validation;
+        // Craft needs a supported site to get there.
+        return array_map(fn(int $id) => ['siteId' => $id, 'propagate' => true], $siteIds ?: [$siteId]);
     }
 
     /**
@@ -217,6 +228,7 @@ class Preset extends Element
             [['sectionId', 'typeId'], 'required', 'on' => $on],
             [['sectionId', 'typeId'], 'number', 'integerOnly' => true, 'on' => $on],
             ['typeId', 'validateEntryType', 'on' => $on],
+            ['siteId', 'validateSite', 'on' => $on],
             ['typeId', 'validateUnique', 'on' => $on],
             ['fieldUids', 'validateRelationCounts', 'skipOnEmpty' => false, 'on' => $on],
         ];
@@ -231,6 +243,19 @@ class Preset extends Element
 
         if (!in_array($this->typeId, $typeIds, true)) {
             $this->addError($attribute, Craft::t('primer', 'This entry type isn’t part of the section.'));
+        }
+    }
+
+    /**
+     * The section is enabled for the preset's site.
+     */
+    public function validateSite(string $attribute): void
+    {
+        $section = $this->getSection();
+        $siteId = $this->siteId ?? Craft::$app->getSites()->getPrimarySite()->id;
+
+        if ($section && !isset($section->getSiteSettings()[$siteId])) {
+            $this->addError($attribute, Craft::t('primer', 'The section isn’t enabled for this site.'));
         }
     }
 
@@ -309,6 +334,13 @@ class Preset extends Element
             } else {
                 Db::update(self::TABLE, $columns, ['id' => $this->id]);
             }
+
+            // The field choice is the same in every scope: the other scopes' presets of the entry type follow.
+            Db::update(self::TABLE, ['fieldUids' => $this->_fieldUids], [
+                'and',
+                ['sectionId' => $this->sectionId, 'typeId' => $this->typeId],
+                ['not', ['id' => $this->id]],
+            ]);
         }
 
         parent::afterSave($isNew);

@@ -12,6 +12,7 @@ use craft\services\Elements;
 use craft\web\UrlManager;
 use davidhellmann\primer\elements\Preset;
 use davidhellmann\primer\services\Applier;
+use davidhellmann\primer\services\Presets;
 use yii\base\Event;
 
 /**
@@ -19,6 +20,7 @@ use yii\base\Event;
  *
  * @method static Plugin getInstance()
  * @property-read Applier $applier
+ * @property-read Presets $presets
  * @author David Hellmann <david@hellmann.io>
  * @copyright David Hellmann
  * @license https://craftcms.github.io/license/ Craft License
@@ -33,6 +35,7 @@ class Plugin extends BasePlugin
         return [
             'components' => [
                 'applier' => Applier::class,
+                'presets' => Presets::class,
             ],
         ];
     }

@@ -1,0 +1,25 @@
+# The integration suite's setup against the multi-site Craft Pro fixture: every table in the test database is
+# dropped, Craft is installed fresh from tests/fixtures/pro, Primer is installed, each test runs in a rolled-back
+# transaction. Runs after `integration` on the same database; each suite installs its own fixture.
+
+actor: IntegrationTester
+modules:
+  enabled:
+    - \craft\test\Craft:
+        configFile: tests/_craft/config/test.php
+        entryUrl: http://primer.test/index.php
+        projectConfig:
+          folder: tests/fixtures/pro
+          reset: true
+        migrations: []
+        plugins:
+          - handle: primer
+        responseCleanMethod: force_recreate
+        cleanup: true
+        transaction: true
+        dbSetup:
+          clean: true
+          setupCraft: true
+    - \davidhellmann\primer\tests\Support\Helper\FixtureEdition
+    - \davidhellmann\primer\tests\Support\Helper\RequestedSite
+    - Asserts

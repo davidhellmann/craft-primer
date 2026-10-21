@@ -1,0 +1,62 @@
+# Multi-site Craft Pro: two site groups and three languages. Corporate: Corporate EN (en-US, primary) and
+# Corporate DE (de-DE). Shop: Shop EN (en-US) and Shop FR (fr-FR). Primer is installed by the suite, not listed here.
+# One Pages section per propagation method (pagesAll, pagesSiteGroup, pagesLanguage, pagesNone, pagesCustom), each
+# enabled for every site and sharing the Page entry type, which holds an Entries, Assets and Users field per
+# translation method (entriesNone, entriesSite, entriesSiteGroup, entriesLanguage, assets…, users…).
+# The Entries fields relate to Library (Custom propagation, entry type Book), so a test can create the entries it
+# relates to in some sites only. Images is the Solo fixture's volume (`@primerTestAssets`, see general.php).
+# Generated through Craft's API; system.schemaVersion must equal Craft's own schema version.
+dateModified: 1792574169
+email:
+  fromEmail: primer@example.com
+  fromName: Primer
+  transportType: craft\mail\transportadapters\Sendmail
+fs:
+  images:
+    hasUrls: false
+    name: Images
+    settings:
+      path: '@primerTestAssets'
+    type: craft\fs\Local
+    url: null
+meta:
+  __names__:
+    2f1d3c4e-5a6b-4c7d-8e9f-0a1b2c3d4e01: Corporate # Corporate
+    2f1d3c4e-5a6b-4c7d-8e9f-0a1b2c3d4e02: 'Corporate EN' # Corporate EN
+    2fbe6840-1d20-4c21-9740-da06d188b6d6: 'Corporate DE' # Corporate DE
+    5e8957cc-81ee-469c-8981-04ed6cd39b4c: 'Users (siteGroup)' # Users (siteGroup)
+    8b963219-28cb-40bd-83ac-c2e392268097: 'Shop EN' # Shop EN
+    22a1046e-0144-4374-bb95-789dd18b48d2: Library # Library
+    37dad534-4d0f-4bc1-b380-c2f3f65fe2f1: 'Users (site)' # Users (site)
+    44d2f40f-5058-4851-a88f-3f9fbd6708b6: 'Entries (none)' # Entries (none)
+    78effd16-c993-41d0-8e6d-21586c357711: 'Assets (site)' # Assets (site)
+    323edce8-0161-4b21-bd85-8268d5fb48b8: 'Pages (custom)' # Pages (custom)
+    484b0df5-96d2-453e-894f-1ddba9c9a662: 'Pages (none)' # Pages (none)
+    509ce69f-a162-4fcb-9a42-2b30f1148e17: 'Assets (siteGroup)' # Assets (siteGroup)
+    4365a9b3-457e-4ce4-b5a6-937ddc312ad2: Shop # Shop
+    18601fc7-4d0e-4325-b236-84ea136959ef: 'Entries (language)' # Entries (language)
+    399718cb-7a07-4e48-91e7-bbb3907baa01: 'Entries (site)' # Entries (site)
+    409988d9-c35e-437c-ab10-bec7dc89b02f: 'Assets (language)' # Assets (language)
+    a087e3f6-3409-4200-8cbd-97c27663b298: 'Users (none)' # Users (none)
+    b011de47-c0f8-4371-90d3-4e679ed03dc7: Book # Book
+    b9c3c896-0ad4-452e-9be3-811836968035: Page # Page
+    b49254ba-851b-4e35-8d81-3ea485c05c1f: 'Pages (language)' # Pages (language)
+    bcad4e2f-aa19-4a2c-9cc7-1e729201836a: 'Assets (none)' # Assets (none)
+    e685ef00-6c44-4cf4-83e9-10b7cd2e9dab: 'Users (language)' # Users (language)
+    e6018f67-0957-4dac-9fe8-095483280536: 'Pages (site group)' # Pages (site group)
+    ec0efb88-f98e-4c51-b157-32a624f09655: 'Shop FR' # Shop FR
+    f20c7854-1490-4992-8f59-de98dad5308b: 'Pages (all)' # Pages (all)
+    f47717f0-7cd5-44f4-9974-39dbebc03a97: 'Entries (siteGroup)' # Entries (siteGroup)
+system:
+  edition: pro
+  live: true
+  name: Primer
+  schemaVersion: 5.11.0.2
+  timeZone: UTC
+users:
+  allowPublicRegistration: false
+  defaultGroup: null
+  photoSubpath: null
+  photoVolumeUid: null
+  require2fa: false
+  requireEmailVerification: true

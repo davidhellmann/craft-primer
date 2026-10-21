@@ -1,0 +1,9 @@
+baseUrl: 'https://shop.test/en/'
+enabled: true
+handle: shopEn
+hasUrls: true
+language: en-US
+name: 'Shop EN'
+primary: false
+siteGroup: 4365a9b3-457e-4ce4-b5a6-937ddc312ad2 # Shop
+sortOrder: 3

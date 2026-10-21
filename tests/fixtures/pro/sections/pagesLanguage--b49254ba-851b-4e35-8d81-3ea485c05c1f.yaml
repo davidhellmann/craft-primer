@@ -1,0 +1,36 @@
+defaultPlacement: end
+enableVersioning: true
+entryTypes:
+  -
+    uid: b9c3c896-0ad4-452e-9be3-811836968035 # Page
+handle: pagesLanguage
+maxAuthors: 1
+minAuthors: 1
+name: 'Pages (language)'
+previewTargets:
+  -
+    label: 'Primary entry page'
+    urlFormat: '{url}'
+propagationMethod: language
+siteSettings:
+  2f1d3c4e-5a6b-4c7d-8e9f-0a1b2c3d4e02: # Corporate EN
+    enabledByDefault: true
+    hasUrls: false
+    template: null
+    uriFormat: null
+  2fbe6840-1d20-4c21-9740-da06d188b6d6: # Corporate DE
+    enabledByDefault: true
+    hasUrls: false
+    template: null
+    uriFormat: null
+  8b963219-28cb-40bd-83ac-c2e392268097: # Shop EN
+    enabledByDefault: true
+    hasUrls: false
+    template: null
+    uriFormat: null
+  ec0efb88-f98e-4c51-b157-32a624f09655: # Shop FR
+    enabledByDefault: true
+    hasUrls: false
+    template: null
+    uriFormat: null
+type: channel

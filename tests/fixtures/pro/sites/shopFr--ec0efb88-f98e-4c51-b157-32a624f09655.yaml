@@ -1,0 +1,9 @@
+baseUrl: 'https://shop.test/fr/'
+enabled: true
+handle: shopFr
+hasUrls: true
+language: fr-FR
+name: 'Shop FR'
+primary: false
+siteGroup: 4365a9b3-457e-4ce4-b5a6-937ddc312ad2 # Shop
+sortOrder: 4

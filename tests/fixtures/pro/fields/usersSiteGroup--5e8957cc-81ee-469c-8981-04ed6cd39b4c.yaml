@@ -1,0 +1,22 @@
+columnSuffix: null
+handle: usersSiteGroup
+instructions: null
+name: 'Users (siteGroup)'
+searchable: false
+settings:
+  allowSelfRelations: false
+  branchLimit: null
+  defaultPlacement: end
+  maintainHierarchy: false
+  maxRelations: null
+  minRelations: null
+  selectionLabel: null
+  showSearchInput: true
+  showSiteMenu: false
+  sources: '*'
+  targetSiteId: null
+  validateRelatedElements: false
+  viewMode: list
+translationKeyFormat: null
+translationMethod: siteGroup
+type: craft\fields\Users
