@@ -27,5 +27,11 @@ class InstallCest
 
         $I->assertTrue($plugins->installPlugin('primer'));
         $I->assertTrue($plugins->isPluginInstalled('primer'));
+
+        // Uninstalling drops Primer's table and installing creates it, and MySQL commits at each such statement,
+        // so the rollback after this test can't restore the database. Craft writes project config changes at the
+        // end of a request, which a test never reaches; write them now, or the tests after this one find Primer's
+        // row but not its project config, and Craft doesn't load it.
+        Craft::$app->getProjectConfig()->flush();
     }
 }
