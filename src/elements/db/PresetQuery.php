@@ -19,6 +19,14 @@ class PresetQuery extends ElementQuery
     public mixed $sectionId = null;
     public mixed $typeId = null;
 
+    /**
+     * Oldest first: should two presets of an entry type share a site anyway, `one()` gets the one that applies.
+     */
+    protected array $defaultOrderBy = [
+        'elements.dateCreated' => SORT_ASC,
+        'elements.id' => SORT_ASC,
+    ];
+
     public function sectionId(mixed $value): static
     {
         $this->sectionId = $value;

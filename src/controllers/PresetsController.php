@@ -41,7 +41,7 @@ class PresetsController extends Controller
 
         $presets = [];
         foreach (Preset::find()->siteId($site->id)->all() as $preset) {
-            $presets["$preset->sectionId:$preset->typeId"] = $preset;
+            $presets["$preset->sectionId:$preset->typeId"] ??= $preset;
         }
 
         // The sites with a preset, for entry types whose presets are in other scopes only.
@@ -101,7 +101,7 @@ class PresetsController extends Controller
 
         $presets = [];
         foreach (Preset::find()->sectionId($section->id)->siteId($site->id)->all() as $preset) {
-            $presets[$preset->typeId] = $preset;
+            $presets[$preset->typeId] ??= $preset;
         }
 
         // The sites with a preset, for entry types whose presets are in other scopes only.

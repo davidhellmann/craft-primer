@@ -5,6 +5,8 @@ namespace davidhellmann\primer\elements;
 use Craft;
 use craft\base\Element;
 use craft\base\FieldInterface;
+use craft\db\Query;
+use craft\db\Table;
 use craft\elements\ContentBlock as ContentBlockElement;
 use craft\elements\User;
 use craft\fieldlayoutelements\CustomField;
@@ -155,12 +157,13 @@ class Preset extends Element
     }
 
     /**
-     * The preset's scope: the sites a new entry of its section, created in the preset's site, would be saved to.
+     * The preset's scope: the sites a new entry of its section, created in the preset's site, would be saved to, but
+     * none another preset of the section and entry type holds, so every site has one preset.
      */
     public function getSupportedSites(): array
     {
         $sites = Craft::$app->getSites();
-        $siteId = $this->siteId ?? $sites->getPrimarySite()->id;
+        $siteId = $this->siteIdOrPrimary();
         $section = $this->getSection();
 
         $sectionSites = [];
@@ -171,11 +174,52 @@ class Preset extends Element
             }
         }
 
-        $siteIds = $section ? Scope::siteIds($section->propagationMethod, $siteId, $sectionSites) : [];
+        $siteIds = $section
+            ? Scope::siteIds($section->propagationMethod, $siteId, $sectionSites, $this->sitesOfOtherPresets())
+            : [];
 
         // Without a section, or in a site the section isn't enabled for, the save fails validation;
         // Craft needs a supported site to get there.
         return array_map(fn(int $id) => ['siteId' => $id, 'propagate' => true], $siteIds ?: [$siteId]);
+    }
+
+    /**
+     * The sites the other presets of the section and entry type hold, and this one doesn't.
+     *
+     * @return int[]
+     */
+    private function sitesOfOtherPresets(): array
+    {
+        if (!$this->sectionId || !$this->typeId) {
+            return [];
+        }
+
+        $rows = (new Query())
+            ->select(['elements_sites.elementId', 'elements_sites.siteId'])
+            ->from(['elements_sites' => Table::ELEMENTS_SITES])
+            ->innerJoin(['primer_presets' => self::TABLE], '[[primer_presets.id]] = [[elements_sites.elementId]]')
+            ->where(['primer_presets.sectionId' => $this->sectionId, 'primer_presets.typeId' => $this->typeId])
+            ->all();
+
+        $others = [];
+        $own = [];
+        foreach ($rows as $row) {
+            if ((int)$row['elementId'] === $this->id) {
+                $own[] = (int)$row['siteId'];
+            } else {
+                $others[] = (int)$row['siteId'];
+            }
+        }
+
+        return array_values(array_diff($others, $own));
+    }
+
+    /**
+     * The preset's site; a preset made without one is made in the primary site, as Craft does.
+     */
+    private function siteIdOrPrimary(): int
+    {
+        return $this->siteId ?? Craft::$app->getSites()->getPrimarySite()->id;
     }
 
     /**
@@ -289,22 +333,21 @@ class Preset extends Element
     public function validateSite(string $attribute): void
     {
         $section = $this->getSection();
-        $siteId = $this->siteId ?? Craft::$app->getSites()->getPrimarySite()->id;
 
-        if ($section && !isset($section->getSiteSettings()[$siteId])) {
+        if ($section && !isset($section->getSiteSettings()[$this->siteIdOrPrimary()])) {
             $this->addError($attribute, Craft::t('primer', 'The section isn’t enabled for this site.'));
         }
     }
 
     /**
-     * One preset per section, entry type and site.
+     * One preset per section, entry type and site, in every site the preset would span.
      */
     public function validateUnique(string $attribute): void
     {
         $query = self::find()
             ->sectionId($this->sectionId)
             ->typeId($this->typeId)
-            ->siteId($this->siteId ?? Craft::$app->getSites()->getPrimarySite()->id);
+            ->siteId(array_column($this->getSupportedSites(), 'siteId'));
 
         if ($this->id) {
             $query->id(['not', $this->id]);
@@ -366,7 +409,7 @@ class Preset extends Element
 
     private function canEditSite(User $user): bool
     {
-        $site = Craft::$app->getSites()->getSiteById($this->siteId ?? Craft::$app->getSites()->getPrimarySite()->id, true);
+        $site = Craft::$app->getSites()->getSiteById($this->siteIdOrPrimary(), true);
 
         return $site !== null && $user->can("editSite:$site->uid");
     }

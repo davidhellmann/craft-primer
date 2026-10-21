@@ -67,4 +67,17 @@ class ScopeTest extends Unit
         $this->assertSame([], Scope::siteIds(PropagationMethod::All, 2, $sites));
         $this->assertSame([], Scope::siteIds(PropagationMethod::None, 2, $sites));
     }
+
+    public function testSitesAnotherPresetHoldsAreLeftOut(): void
+    {
+        // A site added to the section, or a changed propagation method: a preset doesn't spread into another's sites.
+        $this->assertSame([3, 4], Scope::siteIds(PropagationMethod::All, 4, self::SITES, taken: [1, 2]));
+        $this->assertSame([1], Scope::siteIds(PropagationMethod::Language, 1, self::SITES, taken: [3]));
+    }
+
+    public function testThePresetsOwnSiteIsNeverLeftOut(): void
+    {
+        // Validation then says the site has a preset already.
+        $this->assertSame([2, 3], Scope::siteIds(PropagationMethod::All, 2, self::SITES, taken: [1, 2, 4]));
+    }
 }

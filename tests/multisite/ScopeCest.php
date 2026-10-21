@@ -5,6 +5,11 @@ namespace davidhellmann\primer\tests\multisite;
 use Codeception\Attribute\DataProvider;
 use Codeception\Example;
 use Craft;
+use craft\db\Table;
+use craft\enums\PropagationMethod;
+use craft\helpers\Db;
+use craft\models\Section_SiteSettings as SectionSiteSettings;
+use DateTime;
 use davidhellmann\primer\elements\Preset;
 use davidhellmann\primer\Plugin;
 use davidhellmann\primer\tests\Support\IntegrationTester;
@@ -40,6 +45,88 @@ class ScopeCest
 
         $shop = $I->preset('pagesSiteGroup', 'page', [], 'shopEn');
         $I->assertNotSame($corporate->id, $shop->id);
+    }
+
+    public function aSiteAddedToTheSectionLaterGetsAPresetOfItsOwn(IntegrationTester $I): void
+    {
+        $section = $I->section('pagesAll');
+        $settings = $section->getSiteSettings();
+        $shopFr = $I->site('shopFr')->id;
+        $this->setSectionSites($I, 'pagesAll', array_diff_key($settings, [$shopFr => true]));
+        $first = $I->preset('pagesAll', 'page', [], 'corporateEn');
+
+        $added = clone $settings[$shopFr];
+        $added->id = null;
+        $this->setSectionSites($I, 'pagesAll', [...array_diff_key($settings, [$shopFr => true]), $shopFr => $added]);
+        $second = $I->preset('pagesAll', 'page', [], 'shopFr');
+
+        $I->assertSame([
+            'corporateEn' => [$first->id],
+            'corporateDe' => [$first->id],
+            'shopEn' => [$first->id],
+            'shopFr' => [$second->id],
+        ], $this->presetsBySite($I, 'pagesAll'));
+
+        // Saved again, the first stays out of the site the second holds.
+        $I->assertTrue(Plugin::getInstance()->presets->save(Preset::find()->id($first->id)->site('corporateEn')->one()));
+        $I->assertSame([$second->id], $this->presetsBySite($I, 'pagesAll')['shopFr']);
+    }
+
+    public function aChangedPropagationMethodKeepsOnePresetPerSite(IntegrationTester $I): void
+    {
+        $english = $I->preset('pagesNone', 'page', [], 'corporateEn');
+        $german = $I->preset('pagesNone', 'page', [], 'corporateDe');
+
+        $section = $I->section('pagesNone');
+        $section->propagationMethod = PropagationMethod::All;
+        $I->assertTrue(Craft::$app->getEntries()->saveSection($section));
+
+        // A new preset takes the sites no preset holds yet; a saved one keeps out of the others'.
+        $shop = $I->preset('pagesNone', 'page', [], 'shopEn');
+        $I->assertTrue(Plugin::getInstance()->presets->save(Preset::find()->id($english->id)->site('corporateEn')->one()));
+
+        $I->assertSame([
+            'corporateEn' => [$english->id],
+            'corporateDe' => [$german->id],
+            'shopEn' => [$shop->id],
+            'shopFr' => [$shop->id],
+        ], $this->presetsBySite($I, 'pagesNone'));
+    }
+
+    public function aPresetInASiteAnotherPresetHoldsIsInvalid(IntegrationTester $I): void
+    {
+        $I->preset('pagesNone', 'page', [], 'corporateDe');
+        $section = $I->section('pagesNone');
+        $section->propagationMethod = PropagationMethod::All;
+        $I->assertTrue(Craft::$app->getEntries()->saveSection($section));
+
+        $preset = new Preset([
+            'sectionId' => $section->id,
+            'typeId' => $I->entryType('page')->id,
+            'siteId' => $I->site('corporateDe')->id,
+        ]);
+
+        $I->assertFalse(Craft::$app->getElements()->saveElement($preset));
+        $I->assertTrue($preset->hasErrors('typeId'));
+    }
+
+    public function shouldTwoPresetsShareASiteTheOldestApplies(IntegrationTester $I): void
+    {
+        $older = $I->preset('pagesNone', 'page', ['usersNone' => [$I->user('older')->id]], 'corporateEn');
+        $newer = new Preset([
+            'sectionId' => $I->section('pagesNone')->id,
+            'typeId' => $I->entryType('page')->id,
+            'siteId' => $I->site('corporateEn')->id,
+        ]);
+        $newer->setFieldUids([$I->layoutElementUid('page', 'usersNone')]);
+        $newer->setFieldValue('usersNone', [$I->user('newer')->id]);
+        // Without validation, as an import might; the newer one also gets the later date.
+        $I->assertTrue(Craft::$app->getElements()->saveElement($newer, false));
+        Db::update(Table::ELEMENTS, ['dateCreated' => Db::prepareDateForDb(new DateTime('-1 day'))], ['id' => $older->id]);
+
+        $entry = $I->entry('pagesNone', 'page');
+
+        $I->assertSame($older->getFieldValue('usersNone')->ids(), $entry->getFieldValue('usersNone')->ids());
     }
 
     public function aPresetNeedsASiteTheSectionIsEnabledFor(IntegrationTester $I): void
@@ -95,6 +182,34 @@ class ScopeCest
 
         $I->assertSame([], Preset::find()->sectionId($I->section('pagesNone')->id)->site('*')->ids());
         $I->assertSame([$other->id], Preset::find()->site('*')->unique()->ids());
+    }
+
+    /**
+     * @param array<int, SectionSiteSettings> $settings
+     */
+    private function setSectionSites(IntegrationTester $I, string $sectionHandle, array $settings): void
+    {
+        $section = $I->section($sectionHandle);
+        $section->setSiteSettings($settings);
+        $I->assertTrue(Craft::$app->getEntries()->saveSection($section));
+    }
+
+    /**
+     * The presets of the section's Page entry type in each site, in Craft's site order.
+     *
+     * @return array<string, int[]>
+     */
+    private function presetsBySite(IntegrationTester $I, string $sectionHandle): array
+    {
+        $bySite = [];
+        foreach (Craft::$app->getSites()->getAllSites() as $site) {
+            $ids = Preset::find()->sectionId($I->section($sectionHandle)->id)->typeId($I->entryType('page')->id)->siteId($site->id)->ids();
+            if ($ids) {
+                $bySite[$site->handle] = $ids;
+            }
+        }
+
+        return $bySite;
     }
 
     /**
