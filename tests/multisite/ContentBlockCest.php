@@ -3,12 +3,14 @@
 namespace davidhellmann\primer\tests\multisite;
 
 use Craft;
+use craft\base\FieldLayoutElement;
 use craft\elements\ContentBlock;
 use craft\elements\Entry;
 use craft\elements\User;
 use craft\fieldlayoutelements\CustomField;
 use craft\fields\ContentBlock as ContentBlockField;
 use craft\fields\Entries as EntriesField;
+use DateTime;
 use davidhellmann\primer\elements\Preset;
 use davidhellmann\primer\tests\Support\IntegrationTester;
 
@@ -230,6 +232,66 @@ class ContentBlockCest
         // Chosen again, it fills nothing.
         $this->save($I, $preset->id, 'corporateEn', ['teaser']);
         $I->assertSame($empty, $this->entryBlock($this->newFeature($I, 'corporateEn')->id, 'corporateEn'));
+    }
+
+    public function aBlockReplacedInOneSaveDoesntBringTheOldValuesBack(IntegrationTester $I): void
+    {
+        [$values] = $this->values($I, 'preset');
+        $preset = $I->preset('features', 'feature', ['teaser' => ['fields' => $values]], 'corporateEn');
+        $oldUid = $I->layoutElementUid('feature', 'teaser');
+
+        $type = $I->entryType('feature');
+        foreach ($type->getFieldLayout()->getTabs() as $tab) {
+            $tab->setElements(array_map(
+                fn($element) => $element instanceof CustomField && $element->getField()->handle === 'teaser'
+                    ? new CustomField($element->getField(), ['dateAdded' => new DateTime()])
+                    : $element,
+                $tab->getElements(),
+            ));
+        }
+        $I->saveEntryType($type);
+        $I->assertNotSame($oldUid, $I->layoutElementUid('feature', 'teaser'));
+
+        $empty = array_fill_keys(self::INNER, []);
+        foreach (self::SITES as $site) {
+            $I->assertSame($empty, $this->presetBlock($preset->id, $site), $site);
+        }
+    }
+
+    public function anInnerFieldAddedBackToTheBlocksLayoutDoesntBringTheOldValueBack(IntegrationTester $I): void
+    {
+        [$values] = $this->values($I, 'preset');
+        $preset = $I->preset('features', 'feature', ['teaser' => ['fields' => $values]], 'corporateEn');
+
+        // A field save, not an entry type save: the block's own layout loses teaserEntries and gets it back.
+        $this->setTeaserElements($I, fn(array $elements) => array_values(array_filter(
+            $elements,
+            fn($element) => !$element instanceof CustomField || $element->getField()->handle !== 'teaserEntries',
+        )));
+        $this->setTeaserElements($I, fn(array $elements) => [
+            ...$elements,
+            new CustomField(Craft::$app->getFields()->getFieldByHandle('teaserEntries'), ['dateAdded' => new DateTime()]),
+        ]);
+
+        foreach (self::SITES as $site) {
+            $I->assertSame([], $this->presetBlock($preset->id, $site)['teaserEntries'], $site);
+        }
+        $I->assertSame($values['teaserUsers'], $this->presetBlock($preset->id, 'corporateEn')['teaserUsers'], 'The other inner fields stay');
+    }
+
+    /**
+     * Saves the Teaser block field with its own layout's elements changed.
+     *
+     * @param callable(FieldLayoutElement[]): FieldLayoutElement[] $change
+     */
+    private function setTeaserElements(IntegrationTester $I, callable $change): void
+    {
+        $fields = Craft::$app->getFields();
+        $teaser = $fields->getFieldByHandle('teaser');
+        $I->assertInstanceOf(ContentBlockField::class, $teaser);
+        $tab = $teaser->getFieldLayout()->getTabs()[0];
+        $tab->setElements($change($tab->getElements()));
+        $I->assertTrue($fields->saveField($teaser));
     }
 
     private function removeTeaserFromLayout(IntegrationTester $I): void

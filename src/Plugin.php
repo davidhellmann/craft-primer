@@ -8,7 +8,7 @@ use craft\base\Plugin as BasePlugin;
 use craft\elements\ContentBlock;
 use craft\elements\Entry;
 use craft\events\CreateFieldLayoutFormEvent;
-use craft\events\EntryTypeEvent;
+use craft\events\FieldLayoutEvent;
 use craft\events\ModelEvent;
 use craft\events\RegisterComponentTypesEvent;
 use craft\events\RegisterUrlRulesEvent;
@@ -16,7 +16,7 @@ use craft\fieldlayoutelements\CustomField;
 use craft\models\FieldLayout;
 use craft\models\FieldLayoutTab;
 use craft\services\Elements;
-use craft\services\Entries;
+use craft\services\Fields;
 use craft\services\Gc;
 use craft\web\UrlManager;
 use davidhellmann\primer\elements\Preset;
@@ -82,9 +82,14 @@ class Plugin extends BasePlugin
             Craft::$app->getGc()->deletePartialElements(Preset::class, Preset::TABLE, 'id');
         });
 
-        // A field that left an entry type's layout takes its preset values along.
-        Event::on(Entries::class, Entries::EVENT_AFTER_SAVE_ENTRY_TYPE, function(EntryTypeEvent $event) {
-            $this->presets->forgetFieldsNotInLayout($event->entryType);
+        // A field that left an entry type's layout, or a Content Block's, takes its preset values along.
+        Event::on(Fields::class, Fields::EVENT_BEFORE_SAVE_FIELD_LAYOUT, function(FieldLayoutEvent $event) {
+            if (!$event->isNew) {
+                $this->presets->rememberLayout($event->layout);
+            }
+        });
+        Event::on(Fields::class, Fields::EVENT_AFTER_SAVE_FIELD_LAYOUT, function(FieldLayoutEvent $event) {
+            $this->presets->forgetFieldsThatLeft($event->layout);
         });
 
         // A preset saved or deleted in this request is the one the next new entry should get.

@@ -8,6 +8,7 @@ use craft\db\Table;
 use craft\elements\Entry;
 use craft\fieldlayoutelements\CustomField;
 use craft\models\FieldLayoutTab;
+use DateTime;
 use davidhellmann\primer\elements\Preset;
 use davidhellmann\primer\Plugin;
 use davidhellmann\primer\tests\Support\IntegrationTester;
@@ -79,6 +80,44 @@ class LifecycleCest
 
         $entry = $I->entry('news', 'article');
         $I->assertSame([], $entry->getFieldValue('writers')->ids());
+    }
+
+    public function aFieldRemovedAndAddedBackInOneSaveDoesntBringTheOldValueBack(IntegrationTester $I): void
+    {
+        $preset = $this->presetWithTopicsAndWriters($I);
+        $oldUid = $I->layoutElementUid('article', 'writers');
+
+        // One save: the field's layout element is replaced by a new one of the same field.
+        $type = $I->entryType('article');
+        foreach ($type->getFieldLayout()->getTabs() as $tab) {
+            $tab->setElements(array_map(
+                fn($element) => $element instanceof CustomField && $element->getField()->handle === 'writers'
+                    ? new CustomField($element->getField(), ['dateAdded' => new DateTime()])
+                    : $element,
+                $tab->getElements(),
+            ));
+        }
+        $I->saveEntryType($type);
+        $I->assertNotSame($oldUid, $I->layoutElementUid('article', 'writers'));
+
+        $I->assertSame([], Preset::find()->id($preset->id)->one()->getFieldValue('writers')->ids());
+    }
+
+    public function removingOneOfTwoInstancesOfAFieldDoesntCarryItsValueToTheOther(IntegrationTester $I): void
+    {
+        $preset = $this->presetWithTopicsAndWriters($I);
+        $type = $I->entryType('article');
+        $tab = $type->getFieldLayout()->getTabs()[0];
+        $tab->setElements([
+            ...$tab->getElements(),
+            new CustomField(Craft::$app->getFields()->getFieldByHandle('writers'), ['handle' => 'coWriters', 'dateAdded' => new DateTime()]),
+        ]);
+        $I->saveEntryType($type);
+        $I->assertSame([], Preset::find()->id($preset->id)->one()->getFieldValue('coWriters')->ids(), 'Added');
+
+        $this->removeFromLayout($I, 'article', 'writers');
+
+        $I->assertSame([], Preset::find()->id($preset->id)->one()->getFieldValue('coWriters')->ids(), 'The only instance');
     }
 
     public function aChosenFieldThatLeftTheLayoutIsSkippedOnApply(IntegrationTester $I): void
