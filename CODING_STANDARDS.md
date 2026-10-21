@@ -12,7 +12,7 @@ A decision that doesn't need Craft to be made (whether to apply a preset, how ma
 
 The control panel uses Craft's tables, chips, menus, lightswitches, status fields, slideouts and crumbs. Colour and icons come only from Craft's models, such as an entry type's own icon and colour. No invented badges, accents or colours.
 
-*Why:* Primer should look like a part of Craft, in light and dark mode, and keep doing so when Craft's styles change.
+*Why:* Primer should look like a part of Craft and keep doing so when Craft's styles change.
 
 ## One meaning, one wording
 
