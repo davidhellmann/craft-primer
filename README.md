@@ -82,7 +82,7 @@ Then `composer require davidhellmann/craft-primer` and `php craft plugin/install
 - `composer test` runs the PHP tests with Codeception: the `unit` suite without Craft, then the `integration` and `multisite` suites, which install Craft into a test database from the fixtures in `tests/fixtures/solo` (one site) and `tests/fixtures/pro` (four sites in two site groups). Copy `tests/.env.example` to `tests/.env` and point it at an empty MySQL or Postgres database; every table in it is dropped. `composer test -- unit` needs no database.
 - `npm ci`, then `npm test`, runs the browser tests with Playwright. They install their own Craft from the Pro fixture into the database in `tests/browser/.env` (copy `tests/browser/.env.example`), serve it with `php craft serve` and click through the control panel.
 
-The CI workflow runs all of them, the integration suites on MySQL and Postgres with the lowest and the latest supported Craft. Before a release, go through [the release checklist](docs/release-checklist.md).
+The CI workflow runs all of them, the integration suites on MySQL and Postgres with the lowest and the latest supported Craft.
 
 ## License
 

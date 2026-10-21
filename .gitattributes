@@ -7,7 +7,6 @@ CLAUDE.md export-ignore
 CODING_STANDARDS.md export-ignore
 GLOSSARY.md export-ignore
 codeception.yml export-ignore
-docs/ export-ignore
 README.md export-ignore
 composer.lock export-ignore
 ecs.php export-ignore
