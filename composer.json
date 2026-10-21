@@ -1,0 +1,78 @@
+{
+    "name": "davidhellmann/craft-primer",
+    "description": "Set the right defaults for your entries, if needed.",
+    "type": "craft-plugin",
+    "keywords": [
+        "craft",
+        "cms",
+        "craftcms",
+        "craft-plugin",
+        "presets",
+        "defaults",
+        "relation fields",
+        "entries"
+    ],
+    "license": "proprietary",
+    "authors": [
+        {
+            "name": "David Hellmann",
+            "homepage": "https://davidhellmann.com"
+        }
+    ],
+    "support": {
+        "email": "david@hellmann.io",
+        "issues": "https://github.com/davidhellmann/craft-primer/issues?state=open",
+        "source": "https://github.com/davidhellmann/craft-primer",
+        "docs": "https://github.com/davidhellmann/craft-primer",
+        "rss": "https://github.com/davidhellmann/craft-primer/releases.atom"
+    },
+    "require": {
+        "php": ">=8.2",
+        "craftcms/cms": "^5.11.5"
+    },
+    "require-dev": {
+        "codeception/codeception": "^5.2",
+        "codeception/module-asserts": "^3.0",
+        "codeception/module-yii2": "^1.1.9",
+        "craftcms/ecs": "dev-main",
+        "craftcms/phpstan": "dev-main",
+        "phpstan/phpstan": "^2.1",
+        "vlucas/phpdotenv": "^5.4.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "davidhellmann\\primer\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "davidhellmann\\primer\\tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "handle": "primer",
+        "name": "Primer",
+        "developer": "David Hellmann",
+        "developerUrl": "https://davidhellmann.com",
+        "documentationUrl": "https://github.com/davidhellmann/craft-primer"
+    },
+    "scripts": {
+        "check-cs": "ecs check --ansi",
+        "fix-cs": "ecs check --ansi --fix",
+        "phpstan": [
+            "codecept build --quiet",
+            "phpstan --memory-limit=1G"
+        ],
+        "test": "codecept run"
+    },
+    "config": {
+        "sort-packages": true,
+        "platform": {
+            "php": "8.2"
+        },
+        "allow-plugins": {
+            "yiisoft/yii2-composer": true,
+            "craftcms/plugin-installer": true
+        }
+    }
+}

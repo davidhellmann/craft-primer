@@ -1,0 +1,6 @@
+# Pure logic that takes plain values: no Craft module, no database.
+
+actor: UnitTester
+modules:
+  enabled:
+    - Asserts

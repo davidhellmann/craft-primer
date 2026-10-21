@@ -1,0 +1,22 @@
+# Against a real Craft: every table in the test database is dropped, Craft is installed fresh
+# from the Project Config fixture, Primer is installed, and each test runs in a rolled-back transaction.
+
+actor: IntegrationTester
+modules:
+  enabled:
+    - \craft\test\Craft:
+        configFile: tests/_craft/config/test.php
+        entryUrl: http://primer.test/index.php
+        projectConfig:
+          folder: tests/fixtures/solo
+          reset: true
+        migrations: []
+        plugins:
+          - handle: primer
+        cleanup: true
+        transaction: true
+        dbSetup:
+          clean: true
+          setupCraft: true
+    - \davidhellmann\primer\tests\Support\Helper\FixtureEdition
+    - Asserts

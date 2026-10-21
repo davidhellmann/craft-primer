@@ -1,0 +1,33 @@
+# Single-site Craft Solo: one site group, one site. Primer is installed by the suite, not listed here.
+# system.schemaVersion must equal Craft's own schema version, or Craft refuses to install.
+dateModified: 1761004800
+email:
+  fromEmail: primer@example.com
+  fromName: Primer
+  transportType: craft\mail\transportadapters\Sendmail
+siteGroups:
+  2f1d3c4e-5a6b-4c7d-8e9f-0a1b2c3d4e01:
+    name: Primer
+sites:
+  2f1d3c4e-5a6b-4c7d-8e9f-0a1b2c3d4e02:
+    baseUrl: 'https://primer.test/'
+    handle: default
+    hasUrls: true
+    language: en-US
+    name: Primer
+    primary: true
+    siteGroup: 2f1d3c4e-5a6b-4c7d-8e9f-0a1b2c3d4e01
+    sortOrder: 1
+system:
+  edition: solo
+  live: true
+  name: Primer
+  schemaVersion: 5.11.0.2
+  timeZone: UTC
+users:
+  allowPublicRegistration: false
+  defaultGroup: null
+  photoSubpath: null
+  photoVolumeUid: null
+  require2fa: false
+  requireEmailVerification: true
