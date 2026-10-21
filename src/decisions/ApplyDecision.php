@@ -9,8 +9,12 @@ namespace davidhellmann\primer\decisions;
  */
 final class ApplyDecision
 {
+    /**
+     * @param bool $typeChanged The entry exists and its entry type differs from the stored one.
+     */
     public static function shouldApply(
         bool $isNew,
+        bool $typeChanged,
         bool $hasSection,
         bool $hasType,
         bool $propagating,
@@ -20,8 +24,8 @@ final class ApplyDecision
         bool $mergingCanonicalChanges,
         bool $revision,
     ): bool {
-        // Trigger: the entry is being created.
-        if (!$isNew) {
+        // Trigger: the entry is being created, or switched to another entry type.
+        if (!$isNew && !$typeChanged) {
             return false;
         }
 

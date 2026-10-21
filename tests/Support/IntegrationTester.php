@@ -12,6 +12,8 @@ use craft\helpers\Json;
 use craft\models\EntryType;
 use craft\models\Section;
 use davidhellmann\primer\elements\Preset;
+use Yii;
+use yii\log\Logger;
 
 /**
  * The actor of the `integration` suite: Craft's module plus Asserts, and shortcuts into the fixture's content model.
@@ -157,5 +159,40 @@ class IntegrationTester extends Actor
         $data = Json::decodeIfJson($this->grabPageSource());
 
         return is_array($data) ? $data : [];
+    }
+
+    /**
+     * Runs an action and returns what Primer logged meanwhile.
+     *
+     * @return array<array{level: string, message: string}>
+     */
+    public function primerLogOf(callable $action): array
+    {
+        $logger = new class() extends Logger {
+            /** @var array<array{level: string, message: string}> */
+            public array $primer = [];
+
+            public function init(): void
+            {
+                // No flush on shutdown: nothing is dispatched.
+            }
+
+            public function log($message, $level, $category = 'application'): void
+            {
+                if (str_starts_with($category, 'davidhellmann\\primer\\')) {
+                    $this->primer[] = ['level' => Logger::getLevelName($level), 'message' => (string)$message];
+                }
+            }
+        };
+
+        $previous = Yii::getLogger();
+        Yii::setLogger($logger);
+        try {
+            $action();
+        } finally {
+            Yii::setLogger($previous);
+        }
+
+        return $logger->primer;
     }
 }
