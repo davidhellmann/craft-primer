@@ -3,7 +3,7 @@
 namespace davidhellmann\primer\decisions;
 
 /**
- * What presets forget when a field layout is saved (spec 4.4): the values of every layout element that left it.
+ * What presets forget when a field layout is saved: the values of every layout element that left it.
  *
  * Craft finds a relation field's value without a stored one in its relations, and a Content Block by its owner and
  * field, both by field rather than by layout element. A field whose layout element left, even if the same field

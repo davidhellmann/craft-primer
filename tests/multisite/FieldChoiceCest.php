@@ -7,7 +7,7 @@ use davidhellmann\primer\elements\Preset;
 use davidhellmann\primer\tests\Support\IntegrationTester;
 
 /**
- * The field choice is the same in every site and every scope (spec 4.4): a field taken out of it is emptied in all
+ * The field choice is the same in every site and every scope: a field taken out of it is emptied in all
  * of them, whatever its translation method, and starts empty when it is chosen again.
  *
  * Section `pagesSiteGroup` has two scopes: Corporate EN and DE, Shop EN and FR.

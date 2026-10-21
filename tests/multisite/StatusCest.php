@@ -10,7 +10,7 @@ use davidhellmann\primer\elements\Preset;
 use davidhellmann\primer\tests\Support\IntegrationTester;
 
 /**
- * A preset switched on or off per site (spec 4.6, 6.2–6.4): the lightswitch of the index and section page, and
+ * A preset switched on or off per site: the lightswitch of the index and section page, and
  * Craft's status field in the preset's sidebar.
  */
 class StatusCest

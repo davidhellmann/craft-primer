@@ -5,8 +5,8 @@ namespace davidhellmann\primer\decisions;
 use craft\enums\PropagationMethod;
 
 /**
- * The sites a preset spans: the sites a new entry of its section, created in the preset's site, would be saved to
- * (spec 4.2), but none another preset of the same section and entry type holds. A section that doesn't propagate
+ * The sites a preset spans: the sites a new entry of its section, created in the preset's site, would be saved to,
+ * but none another preset of the same section and entry type holds. A section that doesn't propagate
  * everywhere has one preset per scope for an entry type, and every site belongs to one of them.
  */
 final class Scope

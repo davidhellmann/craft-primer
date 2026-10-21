@@ -12,12 +12,13 @@ use davidhellmann\primer\elements\Preset;
 use davidhellmann\primer\tests\Support\IntegrationTester;
 
 /**
- * Presets across sites, for every section propagation method and every field translation method (spec 4.2, 4.5,
- * section 8): each case saves a preset on site A, changes it on site B, then creates an entry on A and one on B,
- * switches the preset off on B and creates both again, and checks every site after each step. One of the related
- * entries exists in the Corporate sites only.
+ * Presets across sites, for every section propagation method and every field translation method: each case saves a
+ * preset on site A, changes it on site B, then creates an entry on A and one on B, switches the preset off on B and
+ * creates both again, and checks every site after each step. One of the related entries exists in the Corporate sites
+ * only.
  *
- * The expected values come from the two tables below, written from the spec, not from Primer's code.
+ * The expected values come from the two tables below, written from Craft's propagation and translation rules, not
+ * from Primer's code.
  */
 class CrossSiteMatrixCest
 {

@@ -121,7 +121,7 @@ class PresetCest
         $I->preset('topics', 'topic');
 
         // Craft soft-deletes sections and entry types and removes their rows later; the foreign keys take the
-        // preset rows along then, and garbage collection the elements (ticket 17).
+        // preset rows along then, and garbage collection the elements.
         Db::delete(Table::ENTRYTYPES, ['id' => $I->entryType('note')->id]);
         Db::delete(Table::SECTIONS, ['id' => $I->section('topics')->id]);
 

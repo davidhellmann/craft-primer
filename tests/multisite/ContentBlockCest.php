@@ -15,10 +15,10 @@ use davidhellmann\primer\elements\Preset;
 use davidhellmann\primer\tests\Support\IntegrationTester;
 
 /**
- * A Content Block field whose layout holds relation fields is chosen in a preset as a whole (spec 3, 4.4, 4.5, 5.5,
- * 6.4). Section `features` (All propagation, every site) has the entry types `page` and `feature`; `feature` holds
- * `entriesSite` and the block `teaser`: teaserEntries (translation none, at most 2), teaserAssets (site),
- * teaserUsers (language) and the Plain Text teaserText (none).
+ * A Content Block field whose layout holds relation fields is chosen in a preset as a whole. Section `features` (All
+ * propagation, every site) has the entry types `page` and `feature`; `feature` holds `entriesSite` and the block
+ * `teaser`: teaserEntries (translation none, at most 2), teaserAssets (site), teaserUsers (language) and the Plain
+ * Text teaserText (none).
  */
 class ContentBlockCest
 {

@@ -99,7 +99,7 @@ class Preset extends Element
     }
 
     /**
-     * Whether the preset applies in its site: on, and on for that site (spec 4.6). Presets have no statuses in
+     * Whether the preset applies in its site: on, and on for that site. Presets have no statuses in
      * Craft's sense, so a query's `status()` can't tell.
      */
     public function isOn(): bool

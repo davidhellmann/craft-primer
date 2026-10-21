@@ -13,7 +13,7 @@ use davidhellmann\primer\elements\Preset;
 use davidhellmann\primer\tests\Support\IntegrationTester;
 
 /**
- * Presets stay consistent when admins change the content model (spec 4.4, 4.7): fields leave the layout, entry types
+ * Presets stay consistent when admins change the content model: fields leave the layout, entry types
  * leave their section, sections, entry types and related elements are deleted.
  */
 class LifecycleCest

@@ -18,7 +18,7 @@ use yii\base\InvalidConfigException;
 
 /**
  * Fills the empty chosen fields of an entry that is being created or switched to another entry type, also the
- * relation fields inside a chosen Content Block, from the preset of its section, entry type and site (spec section 5).
+ * relation fields inside a chosen Content Block, from the preset of its section, entry type and site.
  * Craft then saves and propagates the entry as usual.
  */
 class Applier extends Component

@@ -3,7 +3,7 @@
 namespace davidhellmann\primer\decisions;
 
 /**
- * Whether saving an entry applies a preset, and whose: the trigger, then the guards (spec section 5, steps 1 and 2).
+ * Whether saving an entry applies a preset, and whose: the trigger, then the guards.
  *
  * Plain values in, so it needs neither Craft nor a database. The Applier reads them off the entry.
  */

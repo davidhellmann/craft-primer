@@ -3,7 +3,7 @@
 namespace davidhellmann\primer\decisions;
 
 /**
- * A preset's status (spec 4.6): `enabled` plus enabled per site, as an entry's. A preset applies where both are on.
+ * A preset's status: `enabled` plus enabled per site, as an entry's. A preset applies where both are on.
  *
  * Craft keeps "off" in `enabled` when an element supports a single site, and per site otherwise. A preset switched
  * off in a one-site scope is therefore off as a whole, and stays so in every other site its scope gains later.

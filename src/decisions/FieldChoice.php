@@ -3,7 +3,7 @@
 namespace davidhellmann\primer\decisions;
 
 /**
- * The rules of a preset's field choice (spec 4.4), in layout element UIDs. The choice is the same in every scope:
+ * The rules of a preset's field choice, in layout element UIDs. The choice is the same in every scope:
  * a save writes it to every preset of the entry type, and the fields it takes out are emptied in all of them.
  */
 final class FieldChoice

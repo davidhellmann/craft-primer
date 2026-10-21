@@ -6,7 +6,7 @@ use Codeception\Test\Unit;
 use davidhellmann\primer\decisions\ApplyDecision;
 
 /**
- * Whether saving an entry applies a preset, and whose (spec section 5, steps 1 and 2).
+ * Whether saving an entry applies a preset, and whose.
  */
 class ApplyDecisionTest extends Unit
 {

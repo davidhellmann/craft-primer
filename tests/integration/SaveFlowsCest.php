@@ -14,7 +14,7 @@ use yii\base\Event;
 
 /**
  * The preset applies once, whichever way an entry comes into being or changes entry type,
- * and never in saves that only copy or re-save (spec section 5).
+ * and never in saves that only copy or re-save.
  */
 class SaveFlowsCest
 {
