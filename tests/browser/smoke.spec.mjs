@@ -10,12 +10,12 @@ const topSlideout = (page) => openSlideouts(page).last();
 const currentCrumb = (page) => topSlideout(page).locator('.primer-slideout-crumbs .current');
 const sectionRow = (page, name) => page.locator('.primer-index tbody tr').filter({ has: page.getByRole('link', { name, exact: true }) });
 
-// A preset with no fields yet for the section's Page entry type in a site, through the section page. The entry
+// A preset with no fields yet for an entry type of the section in a site, through the section page. The entry
 // type's link starts it, with "+ Add preset" or "Only in … so far" next to it.
-const createPreset = async (page, sectionHandle, site = 'corporateEn') => {
+const createPreset = async (page, sectionHandle, site = 'corporateEn', type = 'Page') => {
     await page.goto(`primer/sections/${sectionHandle}?site=${site}`);
-    await page.locator('.primer-section-type').click();
-    await expect(page.locator('h1')).toHaveText('New preset: Page');
+    await page.locator('.primer-section-type', { hasText: type }).click();
+    await expect(page.locator('h1')).toHaveText(`New preset: ${type}`);
     await page.locator('#main-form').getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.locator('h1')).toHaveText('Primer');
 };
@@ -144,6 +144,36 @@ test.describe('saving', () => {
         await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Primer' }).click();
         await expect(page.locator('h1')).toHaveText('Primer');
         await expect(line).toContainText('2 fields');
+    });
+});
+
+test.describe('Content Block', () => {
+    // Features holds the Feature entry type with the Teaser block (Entries, Assets and Users fields, and a Plain Text one).
+    test('a block added in a slideout shows only its relation fields and keeps a picked element', async ({ page }) => {
+        await createPreset(page, 'features', 'corporateEn', 'Feature');
+        await page.goto('primer?site=corporateEn');
+        const line = sectionRow(page, 'Features').locator('li[data-preset]');
+        await line.locator('.primer-index-chip').dblclick();
+        await expect(currentCrumb(page)).toHaveText('Feature');
+
+        const preset = topSlideout(page);
+        await addField(page, preset, 'Teaser');
+        const block = preset.locator('[data-primer-field]:not(.hidden)');
+        await expect(block).toHaveCount(1);
+        await expect(block.getByText('Teaser users (language)', { exact: true })).toBeVisible();
+        await expect(block.getByText('Teaser text', { exact: true })).toHaveCount(0);
+        await block.getByRole('button', { name: /Add a user/ }).click();
+        const modal = page.locator('.modal.elementselectormodal:visible');
+        await modal.locator('.element', { hasText: 'admin' }).first().click();
+        await modal.getByRole('button', { name: 'Select', exact: true }).click();
+        await expect(block.locator('.element')).toContainText('admin');
+        await page.keyboard.press('ControlOrMeta+s');
+        await expect(openSlideouts(page)).toHaveCount(0);
+        await expect(line).toContainText('1 field');
+
+        await line.locator('.primer-index-chip').click();
+        await expect(page.locator('h1')).toHaveText('Feature');
+        await expect(page.locator('[data-primer-field]:not(.hidden) .element')).toContainText('admin');
     });
 });
 

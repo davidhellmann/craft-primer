@@ -37,6 +37,6 @@ export default defineConfig({
         // The control panel loads many resources at once; PHP's server handles one request per worker.
         env: { PHP_CLI_SERVER_WORKERS: '4' },
         stdout: 'ignore',
-        stderr: 'pipe',
+        stderr: 'ignore',
     },
 });
