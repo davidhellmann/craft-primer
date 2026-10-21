@@ -4,17 +4,10 @@ namespace davidhellmann\primer\elements;
 
 use Craft;
 use craft\base\Element;
-use craft\base\FieldInterface;
 use craft\db\Query;
 use craft\db\Table;
-use craft\elements\ContentBlock as ContentBlockElement;
 use craft\elements\User;
 use craft\fieldlayoutelements\CustomField;
-use craft\fields\Assets;
-use craft\fields\BaseRelationField;
-use craft\fields\ContentBlock;
-use craft\fields\Entries;
-use craft\fields\Users;
 use craft\helpers\Db;
 use craft\helpers\Json;
 use craft\models\EntryType;
@@ -22,7 +15,9 @@ use craft\models\FieldLayout;
 use craft\models\Section;
 use davidhellmann\primer\decisions\FieldChoice;
 use davidhellmann\primer\decisions\Scope;
+use davidhellmann\primer\decisions\Status;
 use davidhellmann\primer\elements\db\PresetQuery;
+use davidhellmann\primer\holdable\HoldableField;
 use davidhellmann\primer\Plugin;
 
 /**
@@ -31,16 +26,14 @@ use davidhellmann\primer\Plugin;
  * Its field layout is built from the entry type's, with the same layout element UIDs, so Craft stores,
  * relates and propagates a preset's values exactly as it does an entry's, and they map one to one.
  *
+ * The presets of an entry type, one per scope, share their field choice and their fate: every save and delete keeps
+ * them so, whoever saves or deletes, so the rules hold for Craft's own saves too.
+ *
  * @property string[] $fieldUids
  */
 class Preset extends Element
 {
     public const TABLE = '{{%primer_presets}}';
-
-    /**
-     * The relation fields: the fields a preset can hold.
-     */
-    public const RELATION_FIELD_TYPES = [Entries::class, Assets::class, Users::class];
 
     public ?int $sectionId = null;
     public ?int $typeId = null;
@@ -49,6 +42,11 @@ class Preset extends Element
      * @var string[] The chosen layout element UIDs.
      */
     private array $_fieldUids = [];
+
+    /**
+     * @var string[]|null The field choice the entry type's presets shared before the save in progress.
+     */
+    private ?array $_choiceBefore = null;
 
     private ?FieldLayout $_fieldLayout = null;
     private ?int $_fieldLayoutTypeId = null;
@@ -84,55 +82,20 @@ class Preset extends Element
     }
 
     /**
+     * No "Copy value from site" in a field's menu: Craft's copy runs in its element editor's script, which the
+     * preset screen doesn't use.
+     */
+    public function getIsCrossSiteCopyable(): bool
+    {
+        return false;
+    }
+
+    /**
      * @return PresetQuery
      */
     public static function find(): PresetQuery
     {
         return new PresetQuery(static::class);
-    }
-
-    public static function isRelationField(FieldInterface $field): bool
-    {
-        foreach (self::RELATION_FIELD_TYPES as $class) {
-            if ($field instanceof $class) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * The relation fields of a Content Block field's own layout, first level only; none for any other field.
-     *
-     * @return CustomField[]
-     */
-    public static function innerRelationElements(FieldInterface $field): array
-    {
-        if (!$field instanceof ContentBlock) {
-            return [];
-        }
-
-        return array_values(array_filter(
-            $field->getFieldLayout()->getCustomFieldElements(),
-            fn(CustomField $element) => self::isRelationField($element->getField()),
-        ));
-    }
-
-    /**
-     * Whether a preset can hold the field: a relation field, or a Content Block with relation fields.
-     */
-    public static function canHold(FieldInterface $field): bool
-    {
-        return self::isRelationField($field) || self::innerRelationElements($field);
-    }
-
-    /**
-     * The key of a section's entry type, or of the entry type in one site, for looking presets up by them.
-     */
-    public static function key(int $sectionId, int $typeId, ?int $siteId = null): string
-    {
-        return $siteId === null ? "$sectionId:$typeId" : "$sectionId:$typeId:$siteId";
     }
 
     /**
@@ -142,6 +105,22 @@ class Preset extends Element
     public function isOn(): bool
     {
         return $this->enabled && $this->getEnabledForSite();
+    }
+
+    /**
+     * Switches sites of the preset's scope on or off, as Craft's status field does (`Status::switched()`); other
+     * sites are left out.
+     *
+     * @param array<int, bool> $bySite
+     * @return int[] The sites whose status this sets. More than the preset's own site, and the save has to propagate.
+     */
+    public function switchSites(array $bySite): array
+    {
+        $switched = Status::switched($this->enabled, $bySite, array_column($this->getSupportedSites(), 'siteId'));
+        $this->enabled = $switched['enabled'];
+        $this->setEnabledForSite($switched['sites']);
+
+        return array_keys($switched['sites']);
     }
 
     /**
@@ -241,7 +220,7 @@ class Preset extends Element
     }
 
     /**
-     * The entry type's fields a preset can hold (`canHold()`), with the same layout element UIDs, not required,
+     * The entry type's holdable fields (`HoldableField`), with the same layout element UIDs, not required,
      * without conditions, half width, in one tab. Built, not stored: it follows the entry type's layout.
      */
     public function getFieldLayout(): ?FieldLayout
@@ -286,7 +265,7 @@ class Preset extends Element
 
         $elements = [];
         foreach ($source->getCustomFieldElements() as $element) {
-            if (!self::canHold($element->getField())) {
+            if (!HoldableField::of($element)) {
                 continue;
             }
 
@@ -385,25 +364,7 @@ class Preset extends Element
     public function validateRelationCounts(): void
     {
         foreach ($this->getChosenFieldElements() as $element) {
-            $field = $element->getField();
-            if ($field instanceof BaseRelationField) {
-                $field->validateRelationCount($this);
-                continue;
-            }
-
-            $block = $this->getFieldValue($element->attribute());
-            if (!$block instanceof ContentBlockElement) {
-                continue;
-            }
-            foreach (self::innerRelationElements($field) as $inner) {
-                $innerField = $inner->getField();
-                if ($innerField instanceof BaseRelationField) {
-                    $innerField->validateRelationCount($block);
-                }
-            }
-            if ($block->hasErrors()) {
-                $this->addModelErrors($block, $element->attribute());
-            }
+            HoldableField::of($element)?->validateIn($this);
         }
     }
 
@@ -447,20 +408,6 @@ class Preset extends Element
         return array_map(fn(CustomField $element) => (string)$element->uid, $this->getLayoutFieldElements());
     }
 
-    /**
-     * The value that empties a field of the preset: no relations, or none in any of a Content Block's relation fields.
-     * The block's array form sets just those, so whatever else the block holds stays.
-     */
-    public static function emptyValue(CustomField $element): mixed
-    {
-        $inner = self::innerRelationElements($element->getField());
-        if (!$inner) {
-            return [];
-        }
-
-        return ['fields' => array_fill_keys(array_map(fn(CustomField $e) => $e->attribute(), $inner), [])];
-    }
-
     public function beforeSave(bool $isNew): bool
     {
         if ($this->getFieldLayout()) {
@@ -470,8 +417,9 @@ class Preset extends Element
             // A field that isn't chosen holds no value, whatever the form posted for it.
             $unchosen = FieldChoice::unchosen($this->getLayoutFieldUids(), $this->_fieldUids);
             foreach ($this->getLayoutFieldElements() as $element) {
-                if (in_array($element->uid, $unchosen, true)) {
-                    $this->setFieldValue($element->attribute(), self::emptyValue($element));
+                $field = HoldableField::of($element);
+                if ($field && in_array($element->uid, $unchosen, true)) {
+                    $this->setFieldValue($field->handle(), $field->emptyValue());
                 }
             }
         }
@@ -482,6 +430,8 @@ class Preset extends Element
     public function afterSave(bool $isNew): void
     {
         if (!$this->propagating) {
+            $this->_choiceBefore = $this->sharedChoiceBefore($isNew);
+
             $columns = [
                 'sectionId' => $this->sectionId,
                 'typeId' => $this->typeId,
@@ -503,5 +453,83 @@ class Preset extends Element
         }
 
         parent::afterSave($isNew);
+    }
+
+    /**
+     * Once the preset is saved in every site of its scope: a field the save took out of the choice is emptied in
+     * every other site of every scope too, so a field chosen again starts empty.
+     */
+    public function afterPropagate(bool $isNew): void
+    {
+        parent::afterPropagate($isNew);
+
+        $before = $this->_choiceBefore;
+        $this->_choiceBefore = null;
+
+        if ($before !== null && FieldChoice::removed($before, $this->_fieldUids, $this->getLayoutFieldUids())) {
+            $this->emptyUnchosenFieldsElsewhere();
+        }
+    }
+
+    /**
+     * The presets of the entry type in every other scope go too, also in sites the user can't edit.
+     */
+    public function afterDelete(): void
+    {
+        parent::afterDelete();
+
+        if (!$this->sectionId || !$this->typeId) {
+            return;
+        }
+
+        $others = self::find()
+            ->sectionId($this->sectionId)
+            ->typeId($this->typeId)
+            ->id(['not', $this->id])
+            ->site('*')
+            ->unique()
+            ->all();
+
+        foreach ($others as $other) {
+            Craft::$app->getElements()->deleteElement($other, $this->hardDelete);
+        }
+    }
+
+    /**
+     * The field choice the entry type's presets shared before this save: this preset's, or, for a new one, the other
+     * scopes'.
+     *
+     * @return string[]
+     */
+    private function sharedChoiceBefore(bool $isNew): array
+    {
+        $query = (new Query())
+            ->select('fieldUids')
+            ->from(self::TABLE)
+            ->where(['sectionId' => $this->sectionId, 'typeId' => $this->typeId])
+            ->orderBy(['id' => SORT_ASC]);
+
+        if (!$isNew) {
+            $query->andWhere(['id' => $this->id]);
+        }
+
+        $fieldUids = $query->scalar();
+
+        return is_string($fieldUids) ? array_values(array_filter((array)Json::decodeIfJson($fieldUids), 'is_string')) : [];
+    }
+
+    /**
+     * Saves the entry type's presets in every site but this one's: each empties the fields it doesn't choose, in its
+     * own site only. Fields of one site don't propagate, so each site is saved.
+     */
+    private function emptyUnchosenFieldsElsewhere(): void
+    {
+        $elements = Craft::$app->getElements();
+
+        foreach (self::find()->sectionId($this->sectionId)->typeId($this->typeId)->site('*')->all() as $preset) {
+            if ($preset->id !== $this->id || $preset->siteId !== $this->siteId) {
+                $elements->saveElement($preset, false, false, false);
+            }
+        }
     }
 }

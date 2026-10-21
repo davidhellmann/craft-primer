@@ -20,9 +20,6 @@
     }] %}
 {% endif %}
 
-{# A slideout request has no `?site=` of its own: the screen's params carry it. #}
-{% set siteParam = craft.app.isMultiSite ? { site: site.handle } : {} %}
-
 {% block content %}
     <div class="tablepane">
         <table class="data fullwidth primer-index">
@@ -37,7 +34,7 @@
                     <tr data-section="{{ row.section.handle }}">
                         <th scope="row">
                             <a href="{{ url('primer/sections/' ~ row.section.handle) }}"
-                               data-primer-nav="{{ { action: 'primer/presets/section', params: { sectionHandle: row.section.handle }|merge(siteParam), form: false }|json_encode }}">
+                               data-primer-nav="{{ { action: 'primer/presets/section', params: { sectionHandle: row.section.handle }|merge(siteParams), form: false }|json_encode }}">
                                 {{- row.section.name|t('site') -}}
                             </a>
                         </th>
@@ -50,7 +47,7 @@
                                                 <li data-preset="{{ item.preset.id }}" class="{{ item.on ? '' : 'primer-off' }}">
                                                     <a class="primer-index-chip"
                                                        href="{{ url('primer/presets/' ~ item.preset.id) }}"
-                                                       data-primer-nav="{{ { action: 'primer/presets/edit', params: { presetId: item.preset.id }|merge(siteParam) }|json_encode }}">
+                                                       data-primer-nav="{{ { action: 'primer/presets/edit', params: { presetId: item.preset.id }|merge(siteParams) }|json_encode }}">
                                                         {{ item.chipHtml|raw }}
                                                     </a>
                                                     <span class="light smalltext">
@@ -66,7 +63,7 @@
                                                 <li>
                                                     <a class="primer-index-chip"
                                                        href="{{ url('primer/presets/new', { sectionId: row.section.id, typeId: item.type.id }) }}"
-                                                       data-primer-nav="{{ { action: 'primer/presets/edit', params: { sectionId: row.section.id, typeId: item.type.id }|merge(siteParam) }|json_encode }}">
+                                                       data-primer-nav="{{ { action: 'primer/presets/edit', params: { sectionId: row.section.id, typeId: item.type.id }|merge(siteParams) }|json_encode }}">
                                                         {{ item.chipHtml|raw }}
                                                     </a>
                                                     <span class="light smalltext">

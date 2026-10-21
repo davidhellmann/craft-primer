@@ -37,7 +37,7 @@
         icon: element.getField().icon(),
         label: element.label() ?? element.getField().name|t('site'),
         description: element.getField().displayName() ~ (element.getField().getIsTranslatable(preset) ? ' · ' ~ 'per site'|t('primer') : ''),
-        attributes: { data: { 'primer-add': element.uid } },
+        attributes: { data: { 'primer-add': element.uid, 'primer-add-to': token } },
         liAttributes: { class: element.uid in chosenUids ? ['hidden'] : [] },
     }), {
         buttonLabel: 'Add field'|t('primer'),
@@ -59,7 +59,6 @@
     .primer-add-field { margin-block-start: var(--m); }
     .primer-remove { color: var(--ui-control-color); padding-inline: 4px !important; }
     .primer-remove svg { width: 11px; height: 11px; }
-    .primer-remove:hover { color: var(--error-color); }
 {% endcss %}
 
 {% js %}
@@ -67,7 +66,6 @@
     const token = {{ token|json_encode|raw }};
     const $fields = $(`[data-primer-fields="${token}"]`);
     const $uids = $(`[data-primer-uids="${token}"]`);
-    const $menu = $(`[data-primer-add-menu="${token}"]`);
     const uidName = {{ 'fieldUids[]'|namespaceInputName|json_encode|raw }};
     const template = document.querySelector(`[data-primer-remove-template="${token}"]`);
 
@@ -78,7 +76,7 @@
             $uids.append($('<input type="hidden">').attr('name', uidName).val(uid));
         }
         $fields.children(`[data-primer-field="${uid}"]`).toggleClass('hidden', !chosen);
-        $(`[data-primer-add="${uid}"]`).closest('li').toggleClass('hidden', chosen);
+        $(`[data-primer-add="${uid}"][data-primer-add-to="${token}"]`).closest('li').toggleClass('hidden', chosen);
     };
 
     $fields.children('[data-primer-field]').each(function() {
@@ -87,11 +85,9 @@
         $(this).children('.heading').append($remove);
     });
 
-    // Craft moves a disclosure menu to the end of the body, so listen on the document.
-    $(document).on('click', '[data-primer-add]', function(event) {
-        if (!$fields.children(`[data-primer-field="${this.dataset.primerAdd}"]`).length) {
-            return;
-        }
+    // Craft moves a disclosure menu to the end of the body, so listen on the document, for this form's menu only:
+    // the same preset can be open twice, as a page and in a slideout.
+    $(document).on('click', `[data-primer-add-to="${token}"]`, function(event) {
         event.preventDefault();
         choose(this.dataset.primerAdd, true);
     });

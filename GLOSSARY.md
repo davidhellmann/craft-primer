@@ -16,6 +16,10 @@ _Avoid_: Site group (Craft's own term), propagation group
 A field that relates entries, assets or users: an Entries, Assets or Users field. Primer treats them alike. Categories and Tags fields are not relation fields in Primer's sense.
 _Avoid_: Element field, reference field
 
+**Holdable field**:
+A field a preset can hold: a relation field, or a Content Block whose own layout has relation fields. Primer's code asks the holdable field how to empty, check and fill itself, rather than telling the two kinds apart.
+_Avoid_: Supported field, preset field
+
 **Shared field**:
 A relation field whose relations are not managed per site, so every site a preset spans holds the same value.
 _Avoid_: Global field, non-localized field

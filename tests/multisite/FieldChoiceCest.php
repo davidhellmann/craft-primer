@@ -2,6 +2,7 @@
 
 namespace davidhellmann\primer\tests\multisite;
 
+use Craft;
 use davidhellmann\primer\elements\Preset;
 use davidhellmann\primer\tests\Support\IntegrationTester;
 
@@ -38,6 +39,23 @@ class FieldChoiceCest
                 $I->assertSame([], $this->ids($id, $site, $handle), "$handle in $site");
             }
             $I->assertNotSame([], $this->ids($id, $site, self::KEPT), self::KEPT . " in $site");
+            $I->assertSame([$I->layoutElementUid('page', self::KEPT)], $this->choice($id, $site), "Choice in $site");
+        }
+    }
+
+    public function aPresetSavedDirectlyEmptiesTheRemovedFieldsEverywhereToo(IntegrationTester $I): void
+    {
+        $presets = $this->presetsWithEveryFieldFilled($I);
+
+        // As any code saving the element, not the save action.
+        $preset = Preset::find()->id($presets['corporate'])->site('corporateEn')->one();
+        $preset->setFieldUids([$I->layoutElementUid('page', self::KEPT)]);
+        $I->assertTrue(Craft::$app->getElements()->saveElement($preset));
+
+        foreach ($this->everySite($presets) as [$id, $site]) {
+            foreach (self::REMOVED as $handle) {
+                $I->assertSame([], $this->ids($id, $site, $handle), "$handle in $site");
+            }
             $I->assertSame([$I->layoutElementUid('page', self::KEPT)], $this->choice($id, $site), "Choice in $site");
         }
     }

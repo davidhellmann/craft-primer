@@ -49,6 +49,39 @@ class SiteScreensCest
         $I->dontSee('Only in', '[data-section="pagesSiteGroup"]');
     }
 
+    public function onlyInNamesTheSitesTheSectionIsStillEnabledFor(IntegrationTester $I): void
+    {
+        $I->amLoggedInAs($I->admin());
+        $I->preset('pagesNone', 'page', [], 'corporateDe');
+        $I->preset('pagesNone', 'page', [], 'shopFr');
+        $section = $I->section('pagesNone');
+        $settings = $section->getSiteSettings();
+        unset($settings[$I->site('shopFr')->id]);
+        $section->setSiteSettings($settings);
+        $I->assertTrue(Craft::$app->getEntries()->saveSection($section));
+
+        $I->amOnPage('/admin/primer?site=corporateEn');
+
+        $I->see('Only in Corporate DE so far', '[data-section="pagesNone"] li');
+    }
+
+    public function aTranslatableFieldOffersNoCopyFromAnotherSite(IntegrationTester $I): void
+    {
+        // Craft's copy needs its element editor's script, which doesn't run on the preset screen.
+        $I->amLoggedInAs($I->admin());
+        $preset = $I->preset('pagesAll', 'page', ['entriesSite' => [], 'usersNone' => []], 'corporateEn');
+
+        $I->amOnPage("/admin/primer/presets/$preset->id?site=corporateDe");
+
+        $I->seeResponseCodeIs(200);
+        $I->seeElement('[data-primer-field][data-attribute="entriesSite"]');
+        $I->dontSeeElement('[data-cross-site-copy]');
+        $I->assertStringNotContainsString(
+            'data-cross-site-copy',
+            $I->slideout('primer/presets/edit', ['presetId' => $preset->id, 'site' => 'corporateDe'])['content'],
+        );
+    }
+
     public function theIndexLinksStayInTheSite(IntegrationTester $I): void
     {
         $I->amLoggedInAs($I->admin());

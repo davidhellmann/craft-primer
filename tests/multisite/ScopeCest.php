@@ -11,7 +11,6 @@ use craft\helpers\Db;
 use craft\models\Section_SiteSettings as SectionSiteSettings;
 use DateTime;
 use davidhellmann\primer\elements\Preset;
-use davidhellmann\primer\Plugin;
 use davidhellmann\primer\tests\Support\IntegrationTester;
 
 /**
@@ -68,7 +67,7 @@ class ScopeCest
         ], $this->presetsBySite($I, 'pagesAll'));
 
         // Saved again, the first stays out of the site the second holds.
-        $I->assertTrue(Plugin::getInstance()->presets->save(Preset::find()->id($first->id)->site('corporateEn')->one()));
+        $I->assertTrue(Craft::$app->getElements()->saveElement(Preset::find()->id($first->id)->site('corporateEn')->one()));
         $I->assertSame([$second->id], $this->presetsBySite($I, 'pagesAll')['shopFr']);
     }
 
@@ -83,7 +82,7 @@ class ScopeCest
 
         // A new preset takes the sites no preset holds yet; a saved one keeps out of the others'.
         $shop = $I->preset('pagesNone', 'page', [], 'shopEn');
-        $I->assertTrue(Plugin::getInstance()->presets->save(Preset::find()->id($english->id)->site('corporateEn')->one()));
+        $I->assertTrue(Craft::$app->getElements()->saveElement(Preset::find()->id($english->id)->site('corporateEn')->one()));
 
         $I->assertSame([
             'corporateEn' => [$english->id],
@@ -178,7 +177,7 @@ class ScopeCest
         $I->preset('pagesNone', 'page', [], 'shopFr');
         $other = $I->preset('pagesSiteGroup', 'page', [], 'corporateEn');
 
-        Plugin::getInstance()->presets->deleteInAllScopes($corporate);
+        Craft::$app->getElements()->deleteElement($corporate, true);
 
         $I->assertSame([], Preset::find()->sectionId($I->section('pagesNone')->id)->site('*')->ids());
         $I->assertSame([$other->id], Preset::find()->site('*')->unique()->ids());

@@ -10,7 +10,6 @@ use craft\fieldlayoutelements\CustomField;
 use craft\models\FieldLayoutTab;
 use DateTime;
 use davidhellmann\primer\elements\Preset;
-use davidhellmann\primer\Plugin;
 use davidhellmann\primer\tests\Support\IntegrationTester;
 
 /**
@@ -60,7 +59,7 @@ class LifecycleCest
 
         $read = Preset::find()->id($preset->id)->one();
         $I->assertCount(2, $read->getFieldUids(), 'Kept until the next save');
-        $I->assertTrue(Plugin::getInstance()->presets->save($read));
+        $I->assertTrue(Craft::$app->getElements()->saveElement($read));
 
         $I->assertSame([$topicsUid], Preset::find()->id($preset->id)->one()->getFieldUids());
     }

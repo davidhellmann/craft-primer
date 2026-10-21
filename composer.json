@@ -1,6 +1,6 @@
 {
     "name": "davidhellmann/craft-primer",
-    "description": "Set the right defaults for your entries, if needed.",
+    "description": "Presets for the relation fields of new entries in Craft CMS.",
     "type": "craft-plugin",
     "keywords": [
         "craft",
@@ -8,7 +8,6 @@
         "craftcms",
         "craft-plugin",
         "presets",
-        "defaults",
         "relation fields",
         "entries"
     ],

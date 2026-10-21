@@ -20,7 +20,9 @@ use craft\services\Fields;
 use craft\services\Gc;
 use craft\web\UrlManager;
 use davidhellmann\primer\elements\Preset;
+use davidhellmann\primer\holdable\RelationField;
 use davidhellmann\primer\services\Applier;
+use davidhellmann\primer\services\LayoutCleanup;
 use davidhellmann\primer\services\Presets;
 use yii\base\Event;
 
@@ -29,6 +31,7 @@ use yii\base\Event;
  *
  * @method static Plugin getInstance()
  * @property-read Applier $applier
+ * @property-read LayoutCleanup $layoutCleanup
  * @property-read Presets $presets
  * @author David Hellmann <david@hellmann.io>
  * @copyright David Hellmann
@@ -49,6 +52,7 @@ class Plugin extends BasePlugin
         return [
             'components' => [
                 'applier' => Applier::class,
+                'layoutCleanup' => LayoutCleanup::class,
                 'presets' => Presets::class,
             ],
         ];
@@ -90,14 +94,16 @@ class Plugin extends BasePlugin
         // A field that left an entry type's layout, or a Content Block's, takes its preset values along.
         Event::on(Fields::class, Fields::EVENT_BEFORE_SAVE_FIELD_LAYOUT, function(FieldLayoutEvent $event) {
             if (!$event->isNew) {
-                $this->presets->rememberLayout($event->layout);
+                $this->layoutCleanup->rememberLayout($event->layout);
             }
         });
         Event::on(Fields::class, Fields::EVENT_AFTER_SAVE_FIELD_LAYOUT, function(FieldLayoutEvent $event) {
-            $this->presets->forgetFieldsThatLeft($event->layout);
+            $this->layoutCleanup->forgetFieldsThatLeft($event->layout);
+            $this->applier->reset();
         });
 
-        // A preset saved or deleted in this request is the one the next new entry should get.
+        // A preset saved or deleted in this request, or one whose layout changed, is the one the next new entry
+        // should get.
         Event::on(Preset::class, Element::EVENT_AFTER_SAVE, fn() => $this->applier->reset());
         Event::on(Preset::class, Element::EVENT_AFTER_DELETE, fn() => $this->applier->reset());
     }
@@ -110,7 +116,7 @@ class Plugin extends BasePlugin
         $tab = clone $tab;
         $tab->setElements(array_values(array_filter(
             $tab->getElements(),
-            fn($element) => $element instanceof CustomField && Preset::isRelationField($element->getField()),
+            fn($element) => $element instanceof CustomField && RelationField::isRelationField($element->getField()),
         )));
 
         return $tab;

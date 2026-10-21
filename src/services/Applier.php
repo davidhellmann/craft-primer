@@ -6,24 +6,20 @@ use Craft;
 use craft\base\Element;
 use craft\db\Query;
 use craft\db\Table;
-use craft\elements\ContentBlock as ContentBlockElement;
-use craft\elements\db\ElementQueryInterface;
 use craft\elements\Entry;
 use craft\fieldlayoutelements\CustomField;
-use craft\fields\BaseRelationField;
-use craft\fields\ContentBlock;
-use craft\models\FieldLayout;
 use davidhellmann\primer\decisions\ApplyDecision;
-use davidhellmann\primer\decisions\Truncation;
 use davidhellmann\primer\elements\Preset;
+use davidhellmann\primer\holdable\HoldableField;
+use davidhellmann\primer\Plugin;
 use Throwable;
 use yii\base\Component;
 use yii\base\InvalidConfigException;
 
 /**
- * Fills the empty chosen relation fields of an entry that is being created or switched to another entry type, also
- * those inside a chosen Content Block, from the preset of its section, entry type and site (spec section 5). Craft
- * then saves and propagates the entry as usual.
+ * Fills the empty chosen fields of an entry that is being created or switched to another entry type, also the
+ * relation fields inside a chosen Content Block, from the preset of its section, entry type and site (spec section 5).
+ * Craft then saves and propagates the entry as usual.
  */
 class Applier extends Component
 {
@@ -37,35 +33,8 @@ class Applier extends Component
      */
     public function apply(Entry $entry, bool $isNew): void
     {
-        // `Entry::setTypeId()` empties `fieldLayoutId`, and Craft writes it back only after `beforeSave`.
-        // Saves that neither create the entry nor set its type leave after these two checks.
-        $typeSet = $entry->id && $entry->fieldLayoutId === null;
-        if (!$isNew && !$typeSet) {
-            return;
-        }
-
-        $typeId = $this->typeId($entry);
-
-        $apply = ApplyDecision::shouldApply(
-            isNew: $isNew,
-            // The editor sets the type on every save, so one query compares it with the stored one.
-            typeChanged: !$isNew && $typeId !== null && $this->storedTypeId($entry) !== $typeId,
-            hasSection: $entry->sectionId !== null,
-            hasType: $typeId !== null,
-            propagating: $entry->propagating,
-            resaving: $entry->resaving,
-            duplicate: $entry->duplicateOf !== null,
-            updatingFromDerivative: $entry->updatingFromDerivative,
-            mergingCanonicalChanges: $entry->mergingCanonicalChanges,
-            revision: $entry->getIsRevision(),
-        );
-
-        if (!$apply || $typeId === null) {
-            return;
-        }
-
         try {
-            $filled = $this->fill($entry, $typeId);
+            $filled = $this->fillIfDue($entry, $isNew);
         } catch (Throwable $e) {
             Craft::warning(sprintf("Primer couldn't apply the preset to %s: %s", $this->describe($entry), $e), __METHOD__);
             return;
@@ -77,11 +46,39 @@ class Applier extends Component
     }
 
     /**
-     * Forgets the presets loaded so far, after one was saved or deleted.
+     * Forgets the presets loaded so far, after one was saved or deleted or a field layout changed.
      */
     public function reset(): void
     {
         $this->_presets = [];
+    }
+
+    /**
+     * Fills the entry from its preset if the save is one that applies it (`ApplyDecision`).
+     *
+     * @return string[] The handles of the fields it filled.
+     */
+    private function fillIfDue(Entry $entry, bool $isNew): array
+    {
+        // `Entry::setTypeId()` empties `fieldLayoutId`, and Craft writes it back only after `beforeSave`.
+        $typeSet = $entry->id && $entry->fieldLayoutId === null;
+
+        $typeId = ApplyDecision::typeToApply(
+            isNew: $isNew,
+            typeSet: $typeSet,
+            typeId: $this->typeId($entry),
+            // One query, only when the type was set.
+            storedTypeId: !$isNew && $typeSet ? $this->storedTypeId($entry) : null,
+            hasSection: $entry->sectionId !== null,
+            propagating: $entry->propagating,
+            resaving: $entry->resaving,
+            duplicate: $entry->duplicateOf !== null,
+            updatingFromDerivative: $entry->updatingFromDerivative,
+            mergingCanonicalChanges: $entry->mergingCanonicalChanges,
+            revision: $entry->getIsRevision(),
+        );
+
+        return $typeId !== null ? $this->fill($entry, $typeId) : [];
     }
 
     /**
@@ -101,72 +98,16 @@ class Applier extends Component
 
         $filled = [];
         foreach ($preset->getChosenFieldElements() as $source) {
-            $target = $this->fieldElement($layout, $source->uid);
-            if (!$target) {
-                continue;
-            }
+            // The entry's layout element with the preset's UID, if it is still a field a preset can hold.
+            $target = $layout->getElementByUid($source->uid);
+            $field = $target instanceof CustomField ? HoldableField::of($target) : null;
 
-            $handle = $target->attribute();
-            $value = $preset->getFieldValue($source->attribute());
-            $field = $target->getField();
-            $didFill = $field instanceof ContentBlock
-                ? $this->fillBlock($entry, $handle, $value, $field)
-                : $this->fillField($entry, $handle, $value, $target);
-
-            if ($didFill) {
-                $filled[] = $handle;
+            if ($field?->fill($entry, $preset->getFieldValue($source->attribute()))) {
+                $filled[] = $field->handle();
             }
         }
 
         return $filled;
-    }
-
-    /**
-     * Fills an empty relation field with the preset's elements.
-     */
-    private function fillField(Entry $entry, string $handle, mixed $value, CustomField $target): bool
-    {
-        if (!$entry->isFieldEmpty($handle)) {
-            return false;
-        }
-
-        $ids = $this->ids($value, $target);
-        if ($ids) {
-            $entry->setFieldValue($handle, $ids);
-        }
-
-        return (bool)$ids;
-    }
-
-    /**
-     * Fills the empty relation fields of the entry's Content Block with the preset block's elements.
-     *
-     * The block is set through its array form, which builds a fresh block: the block's current values go along,
-     * or what an import or the editor already put in the block would be lost.
-     */
-    private function fillBlock(Entry $entry, string $handle, mixed $value, ContentBlock $field): bool
-    {
-        $block = $entry->getFieldValue($handle);
-        if (!$value instanceof ContentBlockElement || !$block instanceof ContentBlockElement) {
-            return false;
-        }
-
-        $values = [];
-        foreach (Preset::innerRelationElements($field) as $inner) {
-            $innerHandle = $inner->attribute();
-            if ($block->isFieldEmpty($innerHandle)) {
-                $ids = $this->ids($value->getFieldValue($innerHandle), $inner);
-                if ($ids) {
-                    $values[$innerHandle] = $ids;
-                }
-            }
-        }
-
-        if ($values) {
-            $entry->setFieldValue($handle, ['fields' => array_merge($block->getSerializedFieldValues(), $values)]);
-        }
-
-        return (bool)$values;
     }
 
     /**
@@ -184,57 +125,27 @@ class Applier extends Component
         $entry->on(Element::EVENT_AFTER_SAVE, $log);
     }
 
+    /**
+     * The entry for a log line. Also for a failure, so it reads only what can't throw.
+     */
     private function describe(Entry $entry): string
     {
+        $typeId = $this->typeId($entry);
+        $site = Craft::$app->getSites()->getSiteById($entry->siteId, true);
+        $type = $typeId ? Craft::$app->getEntries()->getEntryTypeById($typeId) : null;
+
         return sprintf(
             '%s (site %s, entry type %s)',
             $entry->id ? "entry $entry->id" : 'a new entry',
-            $entry->getSite()->handle,
-            $entry->getType()->handle,
+            $site->handle ?? $entry->siteId,
+            $type->handle ?? '?',
         );
-    }
-
-    /**
-     * The entry's layout element with the preset's UID, if it is still a field a preset can hold.
-     */
-    private function fieldElement(FieldLayout $layout, string $uid): ?CustomField
-    {
-        $element = $layout->getElementByUid($uid);
-
-        return $element instanceof CustomField && Preset::canHold($element->getField()) ? $element : null;
-    }
-
-    /**
-     * The preset's element IDs for a field, in preset order, as many as the entry's field allows.
-     *
-     * @return int[]
-     */
-    private function ids(mixed $value, CustomField $target): array
-    {
-        if (!$value instanceof ElementQueryInterface) {
-            return [];
-        }
-
-        $field = $target->getField();
-        $maximum = $field instanceof BaseRelationField ? $field->maxRelations : null;
-
-        return Truncation::toMaximum($value->status(null)->ids(), $maximum);
     }
 
     private function preset(int $sectionId, int $typeId, int $siteId): ?Preset
     {
-        $key = Preset::key($sectionId, $typeId, $siteId);
-
-        $this->_presets[$key] ??= Preset::find()
-            ->sectionId($sectionId)
-            ->typeId($typeId)
-            ->siteId($siteId)
-            ->one() ?? false;
-
-        // The preset of an entry type removed from its section is inert.
-        if ($this->_presets[$key] && !$this->_presets[$key]->typeIsInSection()) {
-            $this->_presets[$key] = false;
-        }
+        $key = "$sectionId:$typeId:$siteId";
+        $this->_presets[$key] ??= Plugin::getInstance()->presets->inSite($sectionId, $typeId, $siteId) ?? false;
 
         return $this->_presets[$key] ?: null;
     }

@@ -4,6 +4,7 @@ namespace davidhellmann\primer\tests\multisite;
 
 use Craft;
 use craft\elements\Entry;
+use craft\enums\PropagationMethod;
 use craft\helpers\Json;
 use davidhellmann\primer\elements\Preset;
 use davidhellmann\primer\tests\Support\IntegrationTester;
@@ -14,6 +15,8 @@ use davidhellmann\primer\tests\Support\IntegrationTester;
  */
 class StatusCest
 {
+    private const ALL_SITES = ['corporateEn', 'corporateDe', 'shopEn', 'shopFr'];
+
     public function theLightswitchSwitchesOnlyTheCurrentSiteAndSaysSo(IntegrationTester $I): void
     {
         $I->amLoggedInAs($I->admin());
@@ -64,6 +67,55 @@ class StatusCest
         $toggle('1');
         $I->assertTrue($this->isOn($preset->id, 'corporateDe'));
         $I->assertSame([$book->id], $this->newEntryIds($I, 'pagesNone', 'corporateDe'));
+    }
+
+    public function aPresetOffAsAWholeStaysOffInTheSitesNotSwitchedOnAfterItsScopeGrew(IntegrationTester $I): void
+    {
+        $I->amLoggedInAs($I->admin());
+        $preset = $I->preset('pagesNone', 'page', [], 'corporateEn');
+        $toggle = fn(string $site, string $on) => $I->postAction('primer/presets/toggle', [
+            'presetId' => $preset->id,
+            'siteId' => $I->site($site)->id,
+            'enabled' => $on,
+        ]);
+        // Off in a one-site scope: Craft keeps that in `enabled`.
+        $toggle('corporateEn', '0');
+
+        // The section now propagates to every site, and the preset spans them all once saved.
+        $section = $I->section('pagesNone');
+        $section->propagationMethod = PropagationMethod::All;
+        $I->assertTrue(Craft::$app->getEntries()->saveSection($section));
+        $I->assertTrue(Craft::$app->getElements()->saveElement(Preset::find()->id($preset->id)->site('corporateEn')->one()));
+        foreach (self::ALL_SITES as $site) {
+            $I->assertFalse($this->isOn($preset->id, $site), "$site before");
+        }
+
+        $toggle('corporateDe', '1');
+
+        $I->assertTrue($this->isOn($preset->id, 'corporateDe'));
+        foreach (['corporateEn', 'shopEn', 'shopFr'] as $site) {
+            $I->assertFalse($this->isOn($preset->id, $site), $site);
+        }
+    }
+
+    public function savingTheStatusOfASiteOutsideTheScopeChangesNothing(IntegrationTester $I): void
+    {
+        $I->amLoggedInAs($I->admin());
+        $preset = $I->preset('pagesNone', 'page', [], 'corporateEn');
+        $I->postAction('primer/presets/toggle', [
+            'presetId' => $preset->id,
+            'siteId' => $I->site('corporateEn')->id,
+            'enabled' => '0',
+        ]);
+
+        $I->postAction('primer/presets/save', [
+            'presetId' => $preset->id,
+            'siteId' => $I->site('corporateEn')->id,
+            'enabledForSite' => [$I->site('shopFr')->id => '1'],
+        ]);
+
+        $I->seeResponseCodeIs(200);
+        $I->assertFalse($this->isOn($preset->id, 'corporateEn'));
     }
 
     public function switchingASiteTheUserMayNotEditIsForbidden(IntegrationTester $I): void

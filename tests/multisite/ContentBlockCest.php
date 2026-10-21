@@ -129,7 +129,7 @@ class ContentBlockCest
         }
     }
 
-    public function aPrefilledBlockKeepsItsValues(IntegrationTester $I): void
+    public function aBlockThatAlreadyHoldsValuesKeepsThem(IntegrationTester $I): void
     {
         [$preset, $import] = $this->values($I, 'preset', 'import');
         $I->preset('features', 'feature', ['teaser' => ['fields' => $preset]]);
@@ -181,6 +181,33 @@ class ContentBlockCest
             $response['errors']['teaser.teaserEntries'] ?? print_r($response, true),
         );
         $I->assertSame([], $this->presetBlock($preset->id, 'corporateEn')['teaserEntries']);
+    }
+
+    public function aNewPresetWithTheBlockSavesThoughAnInnerFieldNeedsAMinimum(IntegrationTester $I): void
+    {
+        $field = Craft::$app->getFields()->getFieldByHandle('teaserEntries');
+        $I->assertInstanceOf(EntriesField::class, $field);
+        $field->minRelations = 1;
+        $I->assertTrue(Craft::$app->getFields()->saveField($field));
+        $teaser = $I->layoutElementUid('feature', 'teaser');
+
+        // Never saved, the preset can't fill the block yet: its form shows Craft's message instead.
+        $new = $I->postAction('primer/presets/save', [
+            'siteId' => $I->site('corporateEn')->id,
+            'sectionId' => $I->section('features')->id,
+            'typeId' => $I->entryType('feature')->id,
+            'fieldUids' => [$teaser],
+        ]);
+        $I->assertSame('Preset saved.', $new['message'] ?? null, print_r($new, true));
+
+        // Once saved, it can, and the minimum holds.
+        $saved = $I->postAction('primer/presets/save', [
+            'siteId' => $I->site('corporateEn')->id,
+            'presetId' => $new['preset']['id'] ?? null,
+            'fieldUids' => [$teaser],
+        ]);
+        $I->assertSame('Couldn’t save preset.', $saved['message'] ?? null);
+        $I->assertArrayHasKey('teaser.teaserEntries', $saved['errors'] ?? []);
     }
 
     public function switchingToATypeWithTheBlockFillsIt(IntegrationTester $I): void

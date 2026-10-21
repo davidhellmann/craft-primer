@@ -13,16 +13,14 @@
             </tr>
         </thead>
         <tbody>
-            {# A slideout request has no `?site=` of its own: the screen's params carry it. #}
-            {% set siteParam = craft.app.isMultiSite ? { site: site.handle } : {} %}
             {% for row in types %}
                 {% set type = row.type %}
                 {% set preset = row.preset %}
                 {% set typeName = type.name|t('site') %}
                 {# A type with a preset opens it; one without opens a new preset. #}
                 {% set screen = preset
-                    ? { url: url('primer/presets/' ~ preset.id), params: { presetId: preset.id }|merge(siteParam) }
-                    : { url: url('primer/presets/new', { sectionId: section.id, typeId: type.id }), params: { sectionId: section.id, typeId: type.id }|merge(siteParam) } %}
+                    ? { url: url('primer/presets/' ~ preset.id), params: { presetId: preset.id }|merge(siteParams) }
+                    : { url: url('primer/presets/new', { sectionId: section.id, typeId: type.id }), params: { sectionId: section.id, typeId: type.id }|merge(siteParams) } %}
                 {% set nav = { action: 'primer/presets/edit', params: screen.params }|json_encode %}
                 <tr data-primer-type="{{ type.handle }}" class="{{ preset and not row.on ? 'primer-off' }}">
                     <th scope="row">

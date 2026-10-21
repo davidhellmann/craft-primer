@@ -2,198 +2,74 @@
 
 namespace davidhellmann\primer\services;
 
-use Craft;
-use craft\db\Query;
-use craft\db\Table;
-use craft\elements\ContentBlock;
-use craft\fieldlayoutelements\CustomField;
-use craft\fields\ContentBlock as ContentBlockField;
-use craft\helpers\ArrayHelper;
-use craft\helpers\Db;
-use craft\helpers\Json;
-use craft\models\FieldLayout;
-use davidhellmann\primer\decisions\FieldChoice;
-use davidhellmann\primer\decisions\LayoutChange;
-use davidhellmann\primer\elements\db\PresetQuery;
+use craft\models\EntryType;
+use craft\models\Section;
+use craft\models\Site;
 use davidhellmann\primer\elements\Preset;
-use Throwable;
+use davidhellmann\primer\models\EntryTypePresets;
 use yii\base\Component;
 
 /**
- * The presets of an entry type across scopes: a section that doesn't propagate everywhere has one preset
- * element per scope for each entry type, and they share their field choice and their fate.
+ * Finds the presets of an entry type across scopes: a section that doesn't propagate everywhere has one preset
+ * element per scope for each entry type. What they share (the field choice, their fate) the presets keep themselves,
+ * on every save and delete (`Preset`).
  */
 class Presets extends Component
 {
     /**
-     * @var array<string, array<string, string>> Field UIDs by layout element UID of the layouts being saved, by
-     *     layout UID, as they were before.
+     * The preset that applies to a new entry of a section's entry type in a site: the oldest, should two share the
+     * site (`PresetQuery`). None when the entry type has left the section: its presets stay, hidden and inert.
      */
-    private array $_layoutsBefore = [];
-
-    /**
-     * The presets of a section's entry type, one per scope, each in one of the sites of its scope.
-     *
-     * @return Preset[]
-     */
-    public function inAllScopes(int $sectionId, int $typeId): array
+    public function inSite(int $sectionId, int $typeId, int $siteId): ?Preset
     {
-        return $this->inEverySite($sectionId, $typeId)->unique()->all();
+        $preset = Preset::find()->sectionId($sectionId)->typeId($typeId)->siteId($siteId)->one();
+
+        return $preset?->typeIsInSection() ? $preset : null;
     }
 
     /**
-     * The presets of a section's entry type in every site of every scope.
+     * The site's preset of a section's entry type, to edit: the saved one, or a new one, which starts with the field
+     * choice of the entry type's presets in other scopes. None when the section isn't enabled for the site.
      */
-    private function inEverySite(int $sectionId, int $typeId): PresetQuery
+    public function toEdit(Section $section, EntryType $type, Site $site): ?Preset
     {
-        return Preset::find()->sectionId($sectionId)->typeId($typeId)->site('*');
+        $saved = Preset::find()->sectionId($section->id)->typeId($type->id)->siteId($site->id)->one();
+        if ($saved) {
+            return $saved;
+        }
+
+        if (!isset($section->getSiteSettings()[$site->id])) {
+            return null;
+        }
+
+        $preset = new Preset([
+            'siteId' => $site->id,
+            'sectionId' => $section->id,
+            'typeId' => $type->id,
+        ]);
+        $preset->setFieldUids($this->sharedChoice($section->id, $type->id));
+
+        return $preset;
     }
 
     /**
-     * The field choice of the entry type's presets, which a new preset in another scope starts with.
+     * The field choice the presets of a section's entry type share; none before the first.
      *
      * @return string[]
      */
-    public function fieldUids(int $sectionId, int $typeId): array
+    public function sharedChoice(int $sectionId, int $typeId): array
     {
-        return ($this->inAllScopes($sectionId, $typeId)[0] ?? null)?->getFieldUids() ?? [];
+        return Preset::find()->sectionId($sectionId)->typeId($typeId)->site('*')->one()?->getFieldUids() ?? [];
     }
 
     /**
-     * Saves a preset, which writes its field choice to every scope (`Preset::afterSave()`), and empties the fields the
-     * save takes out of the choice in every other site of every scope. A field that is chosen again then starts empty.
+     * The site's presets of the entry types of one section or all, and the sites each entry type's presets are in.
      */
-    public function save(Preset $preset): bool
+    public function ofEntryTypes(Site $site, ?Section $section = null): EntryTypePresets
     {
-        $before = $preset->sectionId && $preset->typeId ? $this->fieldUids($preset->sectionId, $preset->typeId) : [];
-
-        $transaction = Craft::$app->getDb()->beginTransaction();
-        try {
-            if (!Craft::$app->getElements()->saveElement($preset, updateSearchIndex: false)) {
-                $transaction->rollBack();
-                return false;
-            }
-
-            if (FieldChoice::removed($before, $preset->getFieldUids(), $preset->getLayoutFieldUids())) {
-                $this->emptyUnchosenFieldsElsewhere($preset);
-            }
-
-            $transaction->commit();
-        } catch (Throwable $e) {
-            $transaction->rollBack();
-            throw $e;
-        }
-
-        return true;
-    }
-
-    /**
-     * Saves the entry type's presets in every site but the saved preset's: each empties the fields it doesn't choose,
-     * in its own site only. Fields of one site don't propagate, so each site is saved.
-     */
-    private function emptyUnchosenFieldsElsewhere(Preset $saved): void
-    {
-        $elements = Craft::$app->getElements();
-
-        foreach ($this->inEverySite((int)$saved->sectionId, (int)$saved->typeId)->all() as $preset) {
-            if ($preset->id !== $saved->id || $preset->siteId !== $saved->siteId) {
-                $elements->saveElement($preset, false, false, false);
-            }
-        }
-    }
-
-    /**
-     * Notes a field layout's elements before Craft saves it over, for `forgetFieldsThatLeft()` afterwards.
-     */
-    public function rememberLayout(FieldLayout $layout): void
-    {
-        if (!$layout->id || !$layout->uid) {
-            return;
-        }
-
-        $config = (new Query())->select('config')->from(Table::FIELDLAYOUTS)->where(['id' => $layout->id])->scalar();
-        $this->_layoutsBefore[$layout->uid] = $this->fieldUidsByElement(is_string($config) ? Json::decode($config) : null);
-    }
-
-    /**
-     * Forgets the presets' values of every layout element that left a field layout: an entry type's, or a Content
-     * Block's own layout inside a preset. Keyed by layout element UID, so a field removed and added back, also in
-     * one save, or one of two instances of a field removed, can't bring the old value back (`LayoutChange`).
-     */
-    public function forgetFieldsThatLeft(FieldLayout $layout): void
-    {
-        $before = $layout->uid ? ArrayHelper::remove($this->_layoutsBefore, $layout->uid) : null;
-        if ($before === null) {
-            return;
-        }
-
-        $left = LayoutChange::leftFields($before, $this->fieldUidsByElement($layout->getConfig()));
-        $fieldIds = $left ? array_values(Db::idsByUids(Table::FIELDS, $left)) : [];
-        $ownerIds = $fieldIds ? $this->ownersOf($layout) : [];
-        if (!$ownerIds) {
-            return;
-        }
-
-        Db::delete(Table::RELATIONS, ['sourceId' => $ownerIds, 'fieldId' => $fieldIds]);
-
-        // A block goes with its relations: they belong to the block, not the preset.
-        $blocks = ContentBlock::find()->primaryOwnerId($ownerIds)->fieldId($fieldIds)->site('*')->unique()->status(null)->all();
-        foreach ($blocks as $block) {
-            Craft::$app->getElements()->deleteElement($block, true);
-        }
-    }
-
-    /**
-     * The elements that hold presets' values in a layout's fields: the presets of the entry types with that layout,
-     * or the presets' blocks of the Content Block field with that layout.
-     *
-     * @return int[]
-     */
-    private function ownersOf(FieldLayout $layout): array
-    {
-        if ($layout->provider instanceof ContentBlockField) {
-            $presetIds = Preset::find()->site('*')->unique()->ids();
-
-            return $presetIds
-                ? ContentBlock::find()->fieldId($layout->provider->id)->primaryOwnerId($presetIds)->site('*')->unique()->status(null)->ids()
-                : [];
-        }
-
-        $typeIds = (new Query())->select('id')->from(Table::ENTRYTYPES)->where(['fieldLayoutId' => $layout->id])->column();
-
-        return $typeIds ? Preset::find()->typeId($typeIds)->site('*')->unique()->ids() : [];
-    }
-
-    /**
-     * The custom fields of a field layout's config: field UIDs by layout element UID.
-     *
-     * @param array<string, mixed>|null $config
-     * @return array<string, string>
-     */
-    private function fieldUidsByElement(?array $config): array
-    {
-        $fieldUids = [];
-        foreach ($config['tabs'] ?? [] as $tab) {
-            foreach ($tab['elements'] ?? [] as $element) {
-                if (($element['type'] ?? null) === CustomField::class && isset($element['uid'], $element['fieldUid'])) {
-                    $fieldUids[$element['uid']] = $element['fieldUid'];
-                }
-            }
-        }
-
-        return $fieldUids;
-    }
-
-    /**
-     * Deletes the preset and the presets of its section and entry type in every other scope. Presets have no
-     * trash to restore them from, so they go for good.
-     */
-    public function deleteInAllScopes(Preset $preset): void
-    {
-        $elements = Craft::$app->getElements();
-
-        foreach ($this->inAllScopes((int)$preset->sectionId, (int)$preset->typeId) as $sibling) {
-            $elements->deleteElement($sibling, true);
-        }
+        return new EntryTypePresets(
+            Preset::find()->sectionId($section?->id)->siteId($site->id)->all(),
+            Preset::find()->sectionId($section?->id)->site('*')->all(),
+        );
     }
 }
