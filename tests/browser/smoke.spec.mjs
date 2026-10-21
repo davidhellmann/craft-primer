@@ -124,12 +124,15 @@ test.describe('saving', () => {
         const line = sectionRow(page, 'Pages (language)').locator('li[data-preset]');
         await expect(line).toContainText('0 fields');
 
-        // In a slideout over the index: the slideout closes and the index reloads underneath.
+        // In a slideout over the index: the slideout closes, the index reloads underneath and still says so.
         await line.locator('.primer-index-chip').dblclick();
         await addField(page, topSlideout(page), 'Entries (none)');
+        const reloaded = page.waitForEvent('load');
         await page.keyboard.press('ControlOrMeta+s');
+        await reloaded;
         await expect(openSlideouts(page)).toHaveCount(0);
         await expect(line).toContainText('1 field');
+        await expect(page.locator('#notifications')).toContainText('Preset saved.');
 
         // On the page: "Save and continue editing" keeps it open.
         await line.locator('.primer-index-chip').click();

@@ -4,7 +4,7 @@
    - `[data-primer-nav]` links: a click opens the page, a double-click the same screen as `Craft.CpScreenSlideout`,
      Meta/Ctrl-click a new tab (the browser's own). The attribute holds `{ action, params, form }`; `form: false`
      for a screen without a form. A slideout opened from a slideout stacks on top of it.
-   - Saving in a slideout reloads the screen underneath.
+   - Saving in a slideout reloads the screen underneath; a page reloads in full and shows Craft's message again.
    - `[data-primer-delete]`: confirm, delete; on a page with a real POST, so Craft redirects and shows the message
      there; in a slideout (only the ×: Craft leaves destructive ⋯ items out of slideouts) in the background, then the
      slideout reloads.
@@ -23,7 +23,24 @@
         const menu = $(element).closest('.menu--disclosure').data('trigger');
         return $(menu ? menu.$trigger : element).closest('.slideout').data('slideout') || null;
     };
-    const reload = (slideout) => slideout ? slideout.reload() : window.location.reload();
+    // A page reloads in full, which takes Craft's message ("Preset saved.") along: it is kept for the reloaded page,
+    // which shows it again.
+    const noticeKey = 'primer-notice';
+    const reload = (slideout, message = null) => {
+        if (slideout) {
+            slideout.reload();
+            return;
+        }
+        if (message) {
+            sessionStorage.setItem(noticeKey, message);
+        }
+        window.location.reload();
+    };
+    const notice = sessionStorage.getItem(noticeKey);
+    if (notice) {
+        sessionStorage.removeItem(noticeKey);
+        $(() => Craft.cp.displaySuccess(notice));
+    }
 
     const openSlideout = (link) => {
         const { action, params, form = true } = JSON.parse(link.dataset.primerNav);
@@ -32,7 +49,7 @@
             params,
             containerElement: form ? 'form' : 'div',
         });
-        slideout.on('submit', () => reload(underneath));
+        slideout.on('submit', (event) => reload(underneath, event.response?.data?.message));
     };
 
     // A single click waits a moment, so a double-click can claim it.
