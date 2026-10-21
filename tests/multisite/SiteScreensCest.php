@@ -223,6 +223,21 @@ class SiteScreensCest
         $I->assertNotNull(Preset::find()->id($german->id)->site('corporateDe')->one());
     }
 
+    public function craftRendersEveryAssetsFieldWithoutAWarning(IntegrationTester $I): void
+    {
+        $I->amLoggedInAs($this->admin());
+        $page = $I->preset('pagesAll', 'page', ['assetsNone' => [], 'assetsSite' => [], 'assetsSiteGroup' => [], 'assetsLanguage' => []]);
+        $feature = $I->preset('features', 'feature', ['teaser' => []]);
+
+        foreach ([$page, $feature] as $preset) {
+            $I->amOnPage("/admin/primer/presets/$preset->id");
+
+            $I->seeResponseCodeIs(200);
+            $I->seeElement('[data-primer-field] .elementselect');
+            $I->dontSee('invalid volume');
+        }
+    }
+
     /**
      * A Library entry in every site.
      */

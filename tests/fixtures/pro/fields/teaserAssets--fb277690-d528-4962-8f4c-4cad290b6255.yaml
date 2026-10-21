@@ -10,7 +10,7 @@ settings:
   allowedKinds: null
   branchLimit: null
   defaultPlacement: end
-  defaultUploadLocationSource: null
+  defaultUploadLocationSource: 'volume:f5e1ddb7-d459-4daf-b65b-fd4314507291'
   defaultUploadLocationSubpath: null
   maintainHierarchy: false
   maxRelations: null
