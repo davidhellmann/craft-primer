@@ -1,0 +1,96 @@
+{# The preset screen's content: the chosen fields, each rendered by Craft as on an entry, and "+ Add field" below.
+   Rendered inside the CP screen, so inputs are namespaced and the script uses data attributes only. Every relation
+   field is rendered; the ones not chosen stay hidden, and the preset drops their values on save. #}
+{% set token = random() %}
+{% set chosenUids = preset.getChosenFieldElements()|map(element => element.uid) %}
+{% set elements = preset.getRelationFieldElements() %}
+
+{{ hiddenInput('siteId', preset.siteId ?? site.id) }}
+{% if preset.id %}
+    {{ hiddenInput('presetId', preset.id) }}
+{% endif %}
+{{ hiddenInput('sectionId', preset.sectionId) }}
+{{ hiddenInput('typeId', preset.typeId) }}
+{# Posts an empty choice when every field is removed. #}
+{{ hiddenInput('fieldUids', '') }}
+<div data-primer-uids="{{ token }}">
+    {% for uid in chosenUids %}
+        {{ hiddenInput('fieldUids[]', uid) }}
+    {% endfor %}
+</div>
+
+{% for error in preset.getErrors('sectionId')|merge(preset.getErrors('typeId')) %}
+    <p class="error">{{ error }}</p>
+{% endfor %}
+
+<div class="flex-fields" data-primer-fields="{{ token }}">
+    {% for element in elements %}
+        {{ element.formHtml(preset)|attr({
+            class: element.uid in chosenUids ? [] : ['hidden'],
+            'data-primer-field': element.uid,
+        }) }}
+    {% endfor %}
+</div>
+
+<div class="primer-add-field" data-primer-add-menu="{{ token }}">
+    {{ disclosureMenu(elements|map(element => {
+        icon: element.getField().icon(),
+        label: element.label() ?? element.getField().name|t('site'),
+        description: element.getField().displayName() ~ (element.getField().getIsTranslatable(preset) ? ' · ' ~ 'per site'|t('primer') : ''),
+        attributes: { data: { 'primer-add': element.uid } },
+        liAttributes: { class: element.uid in chosenUids ? ['hidden'] : [] },
+    }), {
+        buttonLabel: 'Add field'|t('primer'),
+        buttonAttributes: { class: ['dashed', 'add', 'icon'] },
+        withSearchInput: elements|length > 5,
+        omitIfEmpty: false,
+    }) }}
+</div>
+
+<template data-primer-remove-template="{{ token }}">
+    <button type="button" class="btn small chromeless primer-remove" data-primer-remove title="{{ 'Remove from preset'|t('primer') }}" aria-label="{{ 'Remove from preset'|t('primer') }}">{{ iconSvg('xmark') }}</button>
+</template>
+
+{% css %}
+    [data-primer-fields] > .field { width: 100% !important; }
+    .primer-add-field { margin-block-start: var(--m); }
+    .primer-remove { color: var(--ui-control-color); padding-inline: 4px !important; }
+    .primer-remove svg { width: 11px; height: 11px; }
+    .primer-remove:hover { color: var(--error-color); }
+{% endcss %}
+
+{% js %}
+(() => {
+    const token = {{ token|json_encode|raw }};
+    const $fields = $(`[data-primer-fields="${token}"]`);
+    const $uids = $(`[data-primer-uids="${token}"]`);
+    const $menu = $(`[data-primer-add-menu="${token}"]`);
+    const uidName = {{ 'fieldUids[]'|namespaceInputName|json_encode|raw }};
+    const template = document.querySelector(`[data-primer-remove-template="${token}"]`);
+
+    // A chosen field shows in the form and holds a UID input; the add menu offers the others.
+    const choose = (uid, chosen) => {
+        $uids.find('input').filter((i, input) => input.value === uid).remove();
+        if (chosen) {
+            $uids.append($('<input type="hidden">').attr('name', uidName).val(uid));
+        }
+        $fields.children(`[data-primer-field="${uid}"]`).toggleClass('hidden', !chosen);
+        $(`[data-primer-add="${uid}"]`).closest('li').toggleClass('hidden', chosen);
+    };
+
+    $fields.children('[data-primer-field]').each(function() {
+        const uid = this.dataset.primerField;
+        const $remove = $(template.content.firstElementChild.cloneNode(true)).on('click', () => choose(uid, false));
+        $(this).children('.heading').append($remove);
+    });
+
+    // Craft moves a disclosure menu to the end of the body, so listen on the document.
+    $(document).on('click', '[data-primer-add]', function(event) {
+        if (!$fields.children(`[data-primer-field="${this.dataset.primerAdd}"]`).length) {
+            return;
+        }
+        event.preventDefault();
+        choose(this.dataset.primerAdd, true);
+    });
+})();
+{% endjs %}

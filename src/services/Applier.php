@@ -24,7 +24,7 @@ class Applier extends Component
     /**
      * @var array<string, Preset|false> Presets by section, entry type and site, for this request.
      */
-    private array $presets = [];
+    private array $_presets = [];
 
     /**
      * Handles an entry's `beforeSave`. Never stops the save: a failure is logged and the entry saves without.
@@ -62,7 +62,7 @@ class Applier extends Component
      */
     public function reset(): void
     {
-        $this->presets = [];
+        $this->_presets = [];
     }
 
     private function fill(Entry $entry, int $typeId): void
@@ -130,13 +130,13 @@ class Applier extends Component
     {
         $key = "$sectionId:$typeId:$siteId";
 
-        $this->presets[$key] ??= Preset::find()
+        $this->_presets[$key] ??= Preset::find()
             ->sectionId($sectionId)
             ->typeId($typeId)
             ->siteId($siteId)
             ->one() ?? false;
 
-        return $this->presets[$key] ?: null;
+        return $this->_presets[$key] ?: null;
     }
 
     private function typeId(Entry $entry): ?int

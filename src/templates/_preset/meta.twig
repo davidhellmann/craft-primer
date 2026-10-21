@@ -1,0 +1,11 @@
+{# The preset screen's details sidebar: what the preset is for. Section and entry type don't change once it exists. #}
+<div class="meta read-only">
+    <div class="data">
+        <h5 class="heading">{{ 'Section'|t('app') }}</h5>
+        <div class="value">{{ preset.getSection().name|t('site') }}</div>
+    </div>
+    <div class="data">
+        <h5 class="heading">{{ 'Entry Type'|t('app') }}</h5>
+        <div class="value">{{ preset.getType().name|t('site') }}</div>
+    </div>
+</div>

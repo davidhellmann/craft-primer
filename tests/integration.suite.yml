@@ -13,6 +13,9 @@ modules:
         migrations: []
         plugins:
           - handle: primer
+        # A fresh response per request, as in production. The default clears it instead, which keeps the
+        # behaviour of a CP screen, so a second CP screen in the same test renders nothing.
+        responseCleanMethod: force_recreate
         cleanup: true
         transaction: true
         dbSetup:

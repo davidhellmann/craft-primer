@@ -41,10 +41,10 @@ class Preset extends Element
     /**
      * @var string[] The chosen layout element UIDs.
      */
-    private array $fieldUids = [];
+    private array $_fieldUids = [];
 
-    private ?FieldLayout $fieldLayout = null;
-    private ?int $fieldLayoutTypeId = null;
+    private ?FieldLayout $_fieldLayout = null;
+    private ?int $_fieldLayoutTypeId = null;
 
     public static function displayName(): string
     {
@@ -100,7 +100,7 @@ class Preset extends Element
      */
     public function getFieldUids(): array
     {
-        return $this->fieldUids;
+        return $this->_fieldUids;
     }
 
     /**
@@ -112,7 +112,7 @@ class Preset extends Element
             $uids = Json::decodeIfJson($uids);
         }
 
-        $this->fieldUids = array_values(array_unique(array_filter((array)$uids, 'is_string')));
+        $this->_fieldUids = array_values(array_unique(array_filter((array)$uids, 'is_string')));
     }
 
     public function getSection(): ?Section
@@ -145,12 +145,12 @@ class Preset extends Element
      */
     public function getFieldLayout(): ?FieldLayout
     {
-        if ($this->fieldLayoutTypeId !== $this->typeId) {
-            $this->fieldLayout = $this->buildFieldLayout();
-            $this->fieldLayoutTypeId = $this->typeId;
+        if ($this->_fieldLayoutTypeId !== $this->typeId) {
+            $this->_fieldLayout = $this->buildFieldLayout();
+            $this->_fieldLayoutTypeId = $this->typeId;
         }
 
-        return $this->fieldLayout;
+        return $this->_fieldLayout;
     }
 
     /**
@@ -172,7 +172,7 @@ class Preset extends Element
     {
         return array_values(array_filter(
             $this->getRelationFieldElements(),
-            fn(CustomField $element) => in_array($element->uid, $this->fieldUids, true),
+            fn(CustomField $element) => in_array($element->uid, $this->_fieldUids, true),
         ));
     }
 
@@ -287,7 +287,7 @@ class Preset extends Element
     {
         // A field that isn't chosen holds no value, whatever the form posted for it.
         foreach ($this->getRelationFieldElements() as $element) {
-            if (!in_array($element->uid, $this->fieldUids, true)) {
+            if (!in_array($element->uid, $this->_fieldUids, true)) {
                 $this->setFieldValue($element->attribute(), []);
             }
         }
@@ -301,7 +301,7 @@ class Preset extends Element
             $columns = [
                 'sectionId' => $this->sectionId,
                 'typeId' => $this->typeId,
-                'fieldUids' => $this->fieldUids,
+                'fieldUids' => $this->_fieldUids,
             ];
 
             if ($isNew) {

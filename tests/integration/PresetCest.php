@@ -3,7 +3,10 @@
 namespace davidhellmann\primer\tests\integration;
 
 use Craft;
+use craft\db\Query;
+use craft\db\Table;
 use craft\fieldlayoutelements\CustomField;
+use craft\helpers\Db;
 use davidhellmann\primer\elements\Preset;
 use davidhellmann\primer\tests\Support\IntegrationTester;
 
@@ -109,6 +112,21 @@ class PresetCest
         $read = Preset::find()->id($preset->id)->one();
         $I->assertSame([], $read->getFieldValue('topics')->ids());
         $I->assertCount(1, $read->getFieldValue('writers')->ids());
+    }
+
+    public function itsRowGoesWithItsSectionOrEntryType(IntegrationTester $I): void
+    {
+        $article = $I->preset('news', 'article');
+        $I->preset('news', 'note');
+        $I->preset('topics', 'topic');
+
+        // Craft soft-deletes sections and entry types and removes their rows later; the foreign keys take the
+        // preset rows along then, and garbage collection the elements (ticket 17).
+        Db::delete(Table::ENTRYTYPES, ['id' => $I->entryType('note')->id]);
+        Db::delete(Table::SECTIONS, ['id' => $I->section('topics')->id]);
+
+        $ids = (new Query())->select('id')->from(Preset::TABLE)->column();
+        $I->assertSame([$article->id], array_map('intval', $ids));
     }
 
     public function presetsAreFoundBySectionAndEntryType(IntegrationTester $I): void

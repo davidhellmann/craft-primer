@@ -1,3 +1,69 @@
+{# The index: every section of the site, its entry types with a preset as Craft's entry type chips, and
+   "+ Add entry type" for the ones without. #}
 {% extends '_layouts/cp' %}
 
 {% set title = 'Primer'|t('primer') %}
+
+{% block content %}
+    <div class="tablepane">
+        <table class="data fullwidth primer-index">
+            <thead>
+                <tr>
+                    <th scope="col">{{ 'Section'|t('app') }}</th>
+                    <th scope="col">{{ 'Entry types with a preset'|t('primer') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in sections %}
+                    <tr data-section="{{ row.section.handle }}">
+                        <th scope="row">{{ row.section.name|t('site') }}</th>
+                        <td>
+                            <div class="primer-index-cell">
+                                {% if row.presets %}
+                                    <ul class="primer-index-presets">
+                                        {% for item in row.presets %}
+                                            <li data-preset="{{ item.preset.id }}">
+                                                <a class="primer-index-chip" href="{{ url('primer/presets/' ~ item.preset.id) }}">
+                                                    {{ item.chipHtml|raw }}
+                                                </a>
+                                                <span class="light smalltext">
+                                                    {{- '{count, plural, =1{# field} other{# fields}}'|t('primer', { count: item.fieldCount }) -}}
+                                                </span>
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                                {% if row.available %}
+                                    {{ disclosureMenu(row.available|map(type => {
+                                        icon: type.icon,
+                                        color: type.color,
+                                        label: type.name|t('site'),
+                                        url: url('primer/presets/new', { sectionId: row.section.id, typeId: type.id }),
+                                    }), {
+                                        buttonLabel: 'Add entry type'|t('primer'),
+                                        buttonAttributes: { class: ['dashed', 'add', 'icon'] },
+                                        withSearchInput: row.available|length > 5,
+                                    }) }}
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}
+
+{% css %}
+    /* One 34px line rhythm (Craft's button height), so a section's name lines up with its first chip or button. */
+    .primer-index tbody th, .primer-index tbody td { vertical-align: top; }
+    .primer-index tbody th { width: 30%; font-weight: 600; line-height: 34px; }
+    .primer-index-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+    .primer-index-presets { align-self: stretch; margin: 0; padding: 0; list-style: none; }
+    .primer-index-presets li { display: flex; align-items: center; gap: var(--m); min-height: 34px; }
+    .primer-index-presets li:not(:last-child) { padding-block-end: 6px; }
+    .primer-index-presets li + li { border-block-start: 1px solid var(--hairline-color); padding-block-start: 6px; }
+    .primer-index-chip { border-radius: var(--small-border-radius, 4px); }
+    .primer-index-chip .chip { pointer-events: none; }
+    .primer-index-chip:focus-visible { box-shadow: var(--focus-ring); outline: none; }
+{% endcss %}
