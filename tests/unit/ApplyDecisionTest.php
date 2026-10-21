@@ -20,6 +20,19 @@ class ApplyDecisionTest extends Unit
         $this->assertFalse($this->decide(isNew: false));
     }
 
+    public function testAnExistingEntrySwitchedToAnotherEntryTypeGetsThatTypesPreset(): void
+    {
+        $this->assertTrue($this->decide(isNew: false, typeChanged: true));
+    }
+
+    /**
+     * @dataProvider copyingSaves
+     */
+    public function testATypeSwitchInASaveThatOnlyCopiesOrResavesDoesNot(string $flag): void
+    {
+        $this->assertFalse($this->decide(...['isNew' => false, 'typeChanged' => true, $flag => true]));
+    }
+
     public function testAnEntryWithoutASectionDoesNot(): void
     {
         // Nested entries (Matrix, CKEditor) have an owner instead of a section.
@@ -56,6 +69,7 @@ class ApplyDecisionTest extends Unit
 
     private function decide(
         bool $isNew = true,
+        bool $typeChanged = false,
         bool $hasSection = true,
         bool $hasType = true,
         bool $propagating = false,
@@ -67,6 +81,7 @@ class ApplyDecisionTest extends Unit
     ): bool {
         return ApplyDecision::shouldApply(
             isNew: $isNew,
+            typeChanged: $typeChanged,
             hasSection: $hasSection,
             hasType: $hasType,
             propagating: $propagating,
