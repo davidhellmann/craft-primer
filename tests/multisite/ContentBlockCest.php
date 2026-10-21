@@ -9,10 +9,8 @@ use craft\elements\User;
 use craft\fieldlayoutelements\CustomField;
 use craft\fields\ContentBlock as ContentBlockField;
 use craft\fields\Entries as EntriesField;
-use craft\models\EntryType;
 use davidhellmann\primer\elements\Preset;
 use davidhellmann\primer\tests\Support\IntegrationTester;
-use ReflectionProperty;
 
 /**
  * A Content Block field whose layout holds relation fields is chosen in a preset as a whole (spec 3, 4.4, 4.5, 5.5,
@@ -27,7 +25,7 @@ class ContentBlockCest
 
     public function _before(IntegrationTester $I): void
     {
-        $I->amLoggedInAs(User::find()->admin()->one());
+        $I->amLoggedInAs($I->admin());
     }
 
     public function addFieldOffersTheBlockAsOneField(IntegrationTester $I): void
@@ -150,7 +148,7 @@ class ContentBlockCest
 
     public function aBlockFieldTakesNoMoreThanItsMaximum(IntegrationTester $I): void
     {
-        $books = [$this->book($I, 'One')->id, $this->book($I, 'Two')->id];
+        $books = [$I->book('One')->id, $I->book('Two')->id];
         $I->preset('features', 'feature', ['teaser' => ['fields' => ['teaserEntries' => $books]]]);
         // The field allows fewer elements now than the preset holds.
         $field = Craft::$app->getFields()->getFieldByHandle('teaserEntries');
@@ -166,7 +164,7 @@ class ContentBlockCest
     public function aPresetsBlockFieldHoldsNoMoreThanItsMaximum(IntegrationTester $I): void
     {
         $preset = $I->preset('features', 'feature', ['teaser' => []]);
-        $books = array_map(fn(string $title) => $this->book($I, $title)->id, ['One', 'Two', 'Three']);
+        $books = array_map(fn(string $title) => $I->book($title)->id, ['One', 'Two', 'Three']);
 
         $response = $I->postAction('primer/presets/save', [
             'siteId' => $preset->siteId,
@@ -198,7 +196,7 @@ class ContentBlockCest
     public function removingTheBlockEmptiesItsRelationFieldsInEverySite(IntegrationTester $I): void
     {
         [$values] = $this->values($I, 'preset');
-        $book = $this->book($I, 'Kept');
+        $book = $I->book('Kept');
         $preset = $I->preset('features', 'feature', ['teaser' => ['fields' => $values], 'entriesSite' => [$book->id]], 'corporateEn');
 
         $this->save($I, $preset->id, 'corporateDe', ['entriesSite']);
@@ -243,7 +241,7 @@ class ContentBlockCest
                 fn($element) => !$element instanceof CustomField || $element->getField()->handle !== 'teaser',
             )));
         }
-        $this->saveEntryType($I, $type);
+        $I->saveEntryType($type);
         $I->assertNull($I->entryType('feature')->getFieldLayout()->getFieldByHandle('teaser'), 'teaser left feature');
     }
 
@@ -255,18 +253,7 @@ class ContentBlockCest
         $type = $I->entryType('feature');
         $tab = $type->getFieldLayout()->getTabs()[0];
         $tab->setElements([...$tab->getElements(), new CustomField(Craft::$app->getFields()->getFieldByHandle('teaser'))]);
-        $this->saveEntryType($I, $type);
-    }
-
-    /**
-     * Saves an entry type as the next request would see it: Craft keeps this request's section models, and with them
-     * their entry types' old layouts.
-     */
-    private function saveEntryType(IntegrationTester $I, EntryType $type): void
-    {
-        $entries = Craft::$app->getEntries();
-        $I->assertTrue($entries->saveEntryType($type));
-        (new ReflectionProperty($entries, '_sections'))->setValue($entries, null);
+        $I->saveEntryType($type);
     }
 
     /**
@@ -295,9 +282,9 @@ class ContentBlockCest
     private function values(IntegrationTester $I, string ...$names): array
     {
         return array_map(fn(string $name) => [
-            'teaserEntries' => [$this->book($I, "Book $name")->id],
+            'teaserEntries' => [$I->book("Book $name")->id],
             'teaserAssets' => [$I->image("$name.png")->id],
-            'teaserUsers' => [$this->user($I, $name)->id],
+            'teaserUsers' => [$I->user($name)->id],
         ], $names);
     }
 
@@ -353,30 +340,6 @@ class ContentBlockCest
         $I->saveElement($entry);
 
         return $entry;
-    }
-
-    /**
-     * A Library entry in every site.
-     */
-    private function book(IntegrationTester $I, string $title): Entry
-    {
-        $entry = new Entry([
-            'sectionId' => $I->section('library')->id,
-            'typeId' => $I->entryType('book')->id,
-            'title' => $title,
-        ]);
-        $entry->setEnabledForSite(array_fill_keys(Craft::$app->getSites()->getAllSiteIds(), true));
-        $I->saveElement($entry);
-
-        return $entry;
-    }
-
-    private function user(IntegrationTester $I, string $name): User
-    {
-        $user = new User(['username' => $name, 'email' => "$name@example.com"]);
-        $I->saveElement($user);
-
-        return $user;
     }
 
     private function newPresetUrl(IntegrationTester $I): string

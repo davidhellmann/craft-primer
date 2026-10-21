@@ -13,6 +13,7 @@ use craft\models\EntryType;
 use craft\models\Section;
 use craft\models\Site;
 use davidhellmann\primer\elements\Preset;
+use ReflectionProperty;
 use Yii;
 use yii\log\Logger;
 
@@ -118,6 +119,60 @@ class IntegrationTester extends Actor
         $this->assertInstanceOf(User::class, $user);
 
         return $user;
+    }
+
+    /**
+     * A saved user, to relate to. Needs Craft Pro: Solo allows a single account.
+     */
+    public function user(string $name): User
+    {
+        $user = new User(['username' => $name, 'email' => "$name@example.com"]);
+        $this->saveElement($user);
+
+        return $user;
+    }
+
+    /**
+     * A saved Library entry of the Pro fixture, to relate to: in the given sites only, created in the first of them,
+     * or in every site.
+     *
+     * @param string[]|null $siteHandles
+     */
+    public function book(string $title = 'Book', ?array $siteHandles = null): Entry
+    {
+        $siteIds = $siteHandles
+            ? array_map(fn(string $handle) => $this->site($handle)->id, $siteHandles)
+            : Craft::$app->getSites()->getAllSiteIds();
+
+        $entry = new Entry([
+            'sectionId' => $this->section('library')->id,
+            'typeId' => $this->entryType('book')->id,
+            'title' => $title,
+        ]);
+        if ($siteHandles) {
+            $entry->siteId = $siteIds[0];
+        }
+        $entry->setEnabledForSite(array_fill_keys($siteIds, true));
+        $this->saveElement($entry);
+
+        $this->assertEqualsCanonicalizing(
+            $siteIds,
+            array_map('intval', Entry::find()->id($entry->id)->site('*')->status(null)->select('elements_sites.siteId')->column()),
+            "The sites of $title",
+        );
+
+        return $entry;
+    }
+
+    /**
+     * Saves an entry type as the next request would see it: Craft keeps this request's section models, and with them
+     * their entry types' old layouts.
+     */
+    public function saveEntryType(EntryType $type): void
+    {
+        $entries = Craft::$app->getEntries();
+        $this->assertTrue($entries->saveEntryType($type));
+        (new ReflectionProperty($entries, '_sections'))->setValue($entries, null);
     }
 
     /**

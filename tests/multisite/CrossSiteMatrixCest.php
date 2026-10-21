@@ -7,7 +7,6 @@ use Codeception\Example;
 use Craft;
 use craft\elements\db\ElementQueryInterface;
 use craft\elements\Entry;
-use craft\elements\User;
 use craft\models\Site;
 use davidhellmann\primer\elements\Preset;
 use davidhellmann\primer\tests\Support\IntegrationTester;
@@ -86,18 +85,18 @@ class CrossSiteMatrixCest
         $a = 'corporateEn';
         $b = $propagation['b'];
 
-        $everywhere = $this->book($I, 'Everywhere', self::SITES);
-        $corporateOnly = $this->book($I, 'Corporate only', self::CORPORATE);
-        $later = $this->book($I, 'Later', self::SITES);
+        $everywhere = $I->book('Everywhere', self::SITES);
+        $corporateOnly = $I->book('Corporate only', self::CORPORATE);
+        $later = $I->book('Later', self::SITES);
         $valuesOfA = [
             $fields[0] => [$everywhere->id, $corporateOnly->id],
             $fields[1] => [$I->image('a.png')->id],
-            $fields[2] => [$this->user($I, 'alice')->id],
+            $fields[2] => [$I->user('alice')->id],
         ];
         $valuesOfB = [
             $fields[0] => [$later->id],
             $fields[1] => [$I->image('b.png')->id],
-            $fields[2] => [$this->user($I, 'bob')->id],
+            $fields[2] => [$I->user('bob')->id],
         ];
 
         // 1. Saved on A: the preset is copied to every site of its scope, and nowhere else.
@@ -152,7 +151,7 @@ class CrossSiteMatrixCest
 
         // 5. Switched off on B with the lightswitch: an entry created on B is never filled, in no site Craft copies
         // it to; one created on A still is.
-        $I->amLoggedInAs(User::find()->admin()->one());
+        $I->amLoggedInAs($I->admin());
         $I->postAction('primer/presets/toggle', ['presetId' => $presetOfB->id, 'siteId' => $I->site($b)->id, 'enabled' => '0']);
         $empty = array_fill_keys($fields, []);
 
@@ -247,37 +246,5 @@ class CrossSiteMatrixCest
     private function ids(array $values): array
     {
         return array_map(fn(mixed $value) => $value instanceof ElementQueryInterface ? $value->status(null)->ids() : $value, $values);
-    }
-
-    /**
-     * A Library entry that exists in the given sites only.
-     *
-     * @param string[] $sites
-     */
-    private function book(IntegrationTester $I, string $title, array $sites): Entry
-    {
-        $entry = new Entry([
-            'sectionId' => $I->section('library')->id,
-            'typeId' => $I->entryType('book')->id,
-            'siteId' => $I->site($sites[0])->id,
-            'title' => $title,
-        ]);
-        $entry->setEnabledForSite(array_fill_keys(array_map(fn(string $site) => $I->site($site)->id, $sites), true));
-        $I->saveElement($entry);
-
-        $I->assertEqualsCanonicalizing(
-            array_map(fn(string $site) => $I->site($site)->id, $sites),
-            array_map('intval', Entry::find()->id($entry->id)->site('*')->status(null)->select('elements_sites.siteId')->column()),
-        );
-
-        return $entry;
-    }
-
-    private function user(IntegrationTester $I, string $name): User
-    {
-        $user = new User(['username' => $name, 'email' => "$name@example.com"]);
-        $I->saveElement($user);
-
-        return $user;
     }
 }

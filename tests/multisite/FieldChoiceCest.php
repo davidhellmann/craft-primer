@@ -2,8 +2,6 @@
 
 namespace davidhellmann\primer\tests\multisite;
 
-use craft\elements\Entry;
-use craft\elements\User;
 use davidhellmann\primer\elements\Preset;
 use davidhellmann\primer\tests\Support\IntegrationTester;
 
@@ -25,7 +23,7 @@ class FieldChoiceCest
 
     public function _before(IntegrationTester $I): void
     {
-        $I->amLoggedInAs(User::find()->admin()->one());
+        $I->amLoggedInAs($I->admin());
     }
 
     public function removingAFieldEmptiesItInEverySiteOfEveryScope(IntegrationTester $I): void
@@ -61,7 +59,7 @@ class FieldChoiceCest
 
     public function aNewPresetInAnotherScopeTakesTheFieldOutOfTheOthers(IntegrationTester $I): void
     {
-        $book = $this->book($I);
+        $book = $I->book();
         $corporate = $I->preset('pagesSiteGroup', 'page', ['entriesSite' => [$book->id], self::KEPT => []], 'corporateEn');
 
         $response = $I->postAction('primer/presets/save', [
@@ -97,8 +95,8 @@ class FieldChoiceCest
      */
     private function presetsWithEveryFieldFilled(IntegrationTester $I): array
     {
-        $book = $this->book($I);
-        $values = array_fill_keys(self::REMOVED, [$book->id]) + [self::KEPT => [User::find()->admin()->one()->id]];
+        $book = $I->book();
+        $values = array_fill_keys(self::REMOVED, [$book->id]) + [self::KEPT => [$I->admin()->id]];
 
         $presets = [
             'corporate' => $I->preset('pagesSiteGroup', 'page', $values, 'corporateEn')->id,
@@ -164,22 +162,5 @@ class FieldChoiceCest
     private function choice(int $presetId, string $site): array
     {
         return Preset::find()->id($presetId)->site($site)->one()->getFieldUids();
-    }
-
-    /**
-     * A Library entry in every site.
-     */
-    private function book(IntegrationTester $I): Entry
-    {
-        $entry = new Entry([
-            'sectionId' => $I->section('library')->id,
-            'typeId' => $I->entryType('book')->id,
-            'siteId' => $I->site('corporateEn')->id,
-            'title' => 'Everywhere',
-        ]);
-        $entry->setEnabledForSite(array_fill_keys(array_map(fn(string $site) => $I->site($site)->id, array_merge(...array_values(self::SITES))), true));
-        $I->saveElement($entry);
-
-        return $entry;
     }
 }

@@ -4,7 +4,6 @@ namespace davidhellmann\primer\tests\multisite;
 
 use Craft;
 use craft\elements\Entry;
-use craft\elements\User;
 use craft\helpers\Json;
 use davidhellmann\primer\elements\Preset;
 use davidhellmann\primer\tests\Support\IntegrationTester;
@@ -17,9 +16,9 @@ class StatusCest
 {
     public function theLightswitchSwitchesOnlyTheCurrentSiteAndSaysSo(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->admin());
-        $book = $this->book($I);
-        $preset = $I->preset('pagesSiteGroup', 'page', ['entriesSite' => [$book->id], 'usersNone' => [$this->admin()->id]], 'corporateEn');
+        $I->amLoggedInAs($I->admin());
+        $book = $I->book();
+        $preset = $I->preset('pagesSiteGroup', 'page', ['entriesSite' => [$book->id], 'usersNone' => [$I->admin()->id]], 'corporateEn');
 
         $answer = $I->postAction('primer/presets/toggle', [
             'presetId' => $preset->id,
@@ -34,7 +33,7 @@ class StatusCest
         foreach (['corporateEn', 'corporateDe'] as $site) {
             $inSite = Preset::find()->id($preset->id)->site($site)->one();
             $I->assertSame([$book->id], $inSite->getFieldValue('entriesSite')->status(null)->ids(), "entriesSite in $site");
-            $I->assertSame([$this->admin()->id], $inSite->getFieldValue('usersNone')->status(null)->ids(), "usersNone in $site");
+            $I->assertSame([$I->admin()->id], $inSite->getFieldValue('usersNone')->status(null)->ids(), "usersNone in $site");
         }
 
         $answer = $I->postAction('primer/presets/toggle', [
@@ -49,8 +48,8 @@ class StatusCest
 
     public function aPresetSwitchedOffInASiteOfItsOwnIsNotAppliedUntilSwitchedOnAgain(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->admin());
-        $book = $this->book($I);
+        $I->amLoggedInAs($I->admin());
+        $book = $I->book();
         $preset = $I->preset('pagesNone', 'page', ['entriesSite' => [$book->id]], 'corporateDe');
         $toggle = fn(string $on) => $I->postAction('primer/presets/toggle', [
             'presetId' => $preset->id,
@@ -84,7 +83,7 @@ class StatusCest
 
     public function savingWithTheStatusFieldSetsEverySiteOfTheScope(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->admin());
+        $I->amLoggedInAs($I->admin());
         $preset = $I->preset('pagesSiteGroup', 'page', [], 'corporateEn');
 
         $I->postAction('primer/presets/save', [
@@ -100,7 +99,7 @@ class StatusCest
 
     public function savingWithASiteOnSwitchesThePresetOn(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->admin());
+        $I->amLoggedInAs($I->admin());
         $preset = $I->preset('pagesNone', 'page', [], 'corporateDe');
         $I->postAction('primer/presets/toggle', ['presetId' => $preset->id, 'siteId' => $I->site('corporateDe')->id, 'enabled' => '0']);
         $I->assertFalse(Preset::find()->id($preset->id)->site('corporateDe')->one()->enabled);
@@ -116,7 +115,7 @@ class StatusCest
 
     public function aNewPresetSavedWithASiteOffStartsOffThere(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->admin());
+        $I->amLoggedInAs($I->admin());
 
         $I->postAction('primer/presets/save', [
             'siteId' => $I->site('corporateEn')->id,
@@ -155,7 +154,7 @@ class StatusCest
 
     public function theSidebarHasAMasterSwitchAndOneSwitchPerSiteOfTheScope(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->admin());
+        $I->amLoggedInAs($I->admin());
         $preset = $I->preset('pagesSiteGroup', 'page', [], 'corporateEn');
         $I->postAction('primer/presets/toggle', ['presetId' => $preset->id, 'siteId' => $I->site('corporateDe')->id, 'enabled' => '0']);
 
@@ -174,7 +173,7 @@ class StatusCest
 
     public function theMasterSwitchIsOnWhenEverySiteIs(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->admin());
+        $I->amLoggedInAs($I->admin());
         $preset = $I->preset('pagesSiteGroup', 'page', [], 'corporateEn');
 
         $I->amOnPage("/admin/primer/presets/$preset->id?site=corporateEn");
@@ -185,7 +184,7 @@ class StatusCest
 
     public function aPresetWithOneSiteInScopeHasASingleEnabledSwitch(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->admin());
+        $I->amLoggedInAs($I->admin());
         $preset = $I->preset('pagesNone', 'page', [], 'corporateDe');
         $I->postAction('primer/presets/toggle', ['presetId' => $preset->id, 'siteId' => $I->site('corporateDe')->id, 'enabled' => '0']);
 
@@ -211,7 +210,7 @@ class StatusCest
 
     public function aNewPresetStartsOnInEverySite(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->admin());
+        $I->amLoggedInAs($I->admin());
 
         $I->amOnPage(sprintf('/admin/primer/presets/new?sectionId=%d&typeId=%d&site=corporateEn', $I->section('pagesAll')->id, $I->entryType('page')->id));
 
@@ -221,7 +220,7 @@ class StatusCest
 
     public function eachIndexLineHasALightswitchForTheCurrentSite(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->admin());
+        $I->amLoggedInAs($I->admin());
         $preset = $I->preset('pagesSiteGroup', 'page', [], 'corporateEn');
         $I->postAction('primer/presets/toggle', ['presetId' => $preset->id, 'siteId' => $I->site('corporateDe')->id, 'enabled' => '0']);
 
@@ -244,7 +243,7 @@ class StatusCest
 
     public function anIndexLineOnlyInOtherScopesHasNoLightswitch(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->admin());
+        $I->amLoggedInAs($I->admin());
         $I->preset('pagesNone', 'page', [], 'corporateDe');
 
         $I->amOnPage('/admin/primer?site=corporateEn');
@@ -255,7 +254,7 @@ class StatusCest
 
     public function eachSectionPageLineHasALightswitchForTheCurrentSite(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->admin());
+        $I->amLoggedInAs($I->admin());
         $preset = $I->preset('pagesSiteGroup', 'page', [], 'corporateEn');
         $I->postAction('primer/presets/toggle', ['presetId' => $preset->id, 'siteId' => $I->site('corporateDe')->id, 'enabled' => '0']);
 
@@ -277,7 +276,7 @@ class StatusCest
 
     public function aSectionPageLineWithoutAPresetHasNoLightswitch(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->admin());
+        $I->amLoggedInAs($I->admin());
 
         $I->amOnPage('/admin/primer/sections/pagesNone?site=corporateEn');
 
@@ -311,23 +310,5 @@ class StatusCest
         $I->saveElement($entry);
 
         return Entry::find()->id($entry->id)->site($site)->status(null)->one()->getFieldValue('entriesSite')->status(null)->ids();
-    }
-
-    private function book(IntegrationTester $I): Entry
-    {
-        $entry = new Entry([
-            'sectionId' => $I->section('library')->id,
-            'typeId' => $I->entryType('book')->id,
-            'title' => 'Book',
-        ]);
-        $entry->setEnabledForSite(array_fill_keys(Craft::$app->getSites()->getAllSiteIds(), true));
-        $I->saveElement($entry);
-
-        return $entry;
-    }
-
-    private function admin(): User
-    {
-        return User::find()->admin()->one();
     }
 }

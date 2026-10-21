@@ -7,12 +7,10 @@ use craft\db\Query;
 use craft\db\Table;
 use craft\elements\Entry;
 use craft\fieldlayoutelements\CustomField;
-use craft\models\EntryType;
 use craft\models\FieldLayoutTab;
 use davidhellmann\primer\elements\Preset;
 use davidhellmann\primer\Plugin;
 use davidhellmann\primer\tests\Support\IntegrationTester;
-use ReflectionProperty;
 
 /**
  * Presets stay consistent when admins change the content model (spec 4.4, 4.7): fields leave the layout, entry types
@@ -210,7 +208,7 @@ class LifecycleCest
                 fn($element) => !$element instanceof CustomField || $element->getField()->handle !== $fieldHandle,
             )));
         }
-        $this->saveEntryType($I, $type);
+        $I->saveEntryType($type);
         $I->assertNull($I->entryType($typeHandle)->getFieldLayout()->getFieldByHandle($fieldHandle), "$fieldHandle left $typeHandle");
     }
 
@@ -227,7 +225,7 @@ class LifecycleCest
             ...$tab->getElements(),
             new CustomField(Craft::$app->getFields()->getFieldByHandle($fieldHandle)),
         ]);
-        $this->saveEntryType($I, $type);
+        $I->saveEntryType($type);
     }
 
     /**
@@ -238,16 +236,5 @@ class LifecycleCest
         $section = $I->section($sectionHandle);
         $section->setEntryTypes(array_map(fn(string $handle) => $I->entryType($handle), $typeHandles));
         $I->assertTrue(Craft::$app->getEntries()->saveSection($section));
-    }
-
-    /**
-     * Saves an entry type as the next request would see it: Craft keeps this request's section models, and with them
-     * their entry types' old layouts.
-     */
-    private function saveEntryType(IntegrationTester $I, EntryType $type): void
-    {
-        $entries = Craft::$app->getEntries();
-        $I->assertTrue($entries->saveEntryType($type));
-        (new ReflectionProperty($entries, '_sections'))->setValue($entries, null);
     }
 }

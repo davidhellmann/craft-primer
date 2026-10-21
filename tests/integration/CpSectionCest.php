@@ -11,7 +11,7 @@ class CpSectionCest
 {
     public function theNavShowsPrimerAndOpensAnEmptyIndex(IntegrationTester $I): void
     {
-        $I->amLoggedInAs(User::find()->admin()->one());
+        $I->amLoggedInAs($I->admin());
 
         $I->amOnPage('/admin/dashboard');
         $I->seeResponseCodeIs(200);

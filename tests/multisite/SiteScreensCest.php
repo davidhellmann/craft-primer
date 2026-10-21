@@ -15,7 +15,7 @@ class SiteScreensCest
 {
     public function theIndexShowsThePresetsOfTheRequestedSite(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->admin());
+        $I->amLoggedInAs($I->admin());
         $I->preset('pagesNone', 'page', ['entriesSite' => [], 'usersNone' => []], 'corporateDe');
 
         $I->amOnPage('/admin/primer?site=corporateDe');
@@ -28,7 +28,7 @@ class SiteScreensCest
 
     public function anEntryTypeWithPresetsInOtherScopesOnlySaysWhere(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->admin());
+        $I->amLoggedInAs($I->admin());
         $I->preset('pagesNone', 'page', [], 'corporateDe');
         $I->preset('pagesNone', 'page', [], 'shopFr');
         $I->preset('pagesSiteGroup', 'page', [], 'corporateEn');
@@ -51,7 +51,7 @@ class SiteScreensCest
 
     public function theIndexLinksStayInTheSite(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->admin());
+        $I->amLoggedInAs($I->admin());
         $preset = $I->preset('pagesAll', 'page', [], 'shopEn');
 
         $I->amOnPage('/admin/primer?site=shopEn');
@@ -78,8 +78,8 @@ class SiteScreensCest
 
     public function thePresetScreenShowsThePresetInTheRequestedSite(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->admin());
-        [$english, $german] = [$this->book($I, 'English book'), $this->book($I, 'German book')];
+        $I->amLoggedInAs($I->admin());
+        [$english, $german] = [$I->book('English book'), $I->book('German book')];
         $preset = $I->preset('pagesAll', 'page', ['entriesSite' => [$english->id]], 'corporateEn');
         $inGerman = Preset::find()->id($preset->id)->site('corporateDe')->one();
         $inGerman->setFieldValue('entriesSite', [$german->id]);
@@ -108,7 +108,7 @@ class SiteScreensCest
 
     public function aPresetOfAnotherScopeOpensThisSitesPresetOfTheEntryType(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->admin());
+        $I->amLoggedInAs($I->admin());
         $english = $I->preset('pagesNone', 'page', [], 'corporateEn');
         $german = $I->preset('pagesNone', 'page', [], 'corporateDe');
 
@@ -119,7 +119,7 @@ class SiteScreensCest
 
     public function aPresetOfAnotherScopeStartsThisSitesPresetWhenThereIsNone(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->admin());
+        $I->amLoggedInAs($I->admin());
         $english = $I->preset('pagesNone', 'page', ['entriesSite' => [], 'usersNone' => []], 'corporateEn');
 
         $I->amOnPage("/admin/primer/presets/$english->id?site=shopFr");
@@ -136,7 +136,7 @@ class SiteScreensCest
 
     public function aSlideoutOpensThisSitesPresetInPlace(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->admin());
+        $I->amLoggedInAs($I->admin());
         $german = $I->preset('pagesNone', 'page', [], 'corporateDe');
 
         // A slideout can't follow a redirect to a page: it gets the existing preset itself.
@@ -154,7 +154,7 @@ class SiteScreensCest
 
     public function theSectionPageIsAboutTheRequestedSite(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->admin());
+        $I->amLoggedInAs($I->admin());
         $I->preset('pagesNone', 'page', [], 'corporateDe');
 
         $I->amOnPage('/admin/primer/sections/pagesNone?site=corporateEn');
@@ -169,8 +169,8 @@ class SiteScreensCest
 
     public function savingStoresThePresetInTheSiteAndReturnsToItsIndex(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->admin());
-        $book = $this->book($I, 'Shop book');
+        $I->amLoggedInAs($I->admin());
+        $book = $I->book('Shop book');
         $uid = $I->layoutElementUid('page', 'entriesSite');
         $I->amOnPage(sprintf('/admin/primer/presets/new?sectionId=%d&typeId=%d&site=shopFr', $I->section('pagesNone')->id, $I->entryType('page')->id));
 
@@ -225,7 +225,7 @@ class SiteScreensCest
 
     public function craftRendersEveryAssetsFieldWithoutAWarning(IntegrationTester $I): void
     {
-        $I->amLoggedInAs($this->admin());
+        $I->amLoggedInAs($I->admin());
         $page = $I->preset('pagesAll', 'page', ['assetsNone' => [], 'assetsSite' => [], 'assetsSiteGroup' => [], 'assetsLanguage' => []]);
         $feature = $I->preset('features', 'feature', ['teaser' => []]);
 
@@ -236,26 +236,5 @@ class SiteScreensCest
             $I->seeElement('[data-primer-field] .elementselect');
             $I->dontSee('invalid volume');
         }
-    }
-
-    /**
-     * A Library entry in every site.
-     */
-    private function book(IntegrationTester $I, string $title): Entry
-    {
-        $entry = new Entry([
-            'sectionId' => $I->section('library')->id,
-            'typeId' => $I->entryType('book')->id,
-            'title' => $title,
-        ]);
-        $entry->setEnabledForSite(array_fill_keys(Craft::$app->getSites()->getAllSiteIds(), true));
-        $I->saveElement($entry);
-
-        return $entry;
-    }
-
-    private function admin(): User
-    {
-        return User::find()->admin()->one();
     }
 }
