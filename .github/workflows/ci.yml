@@ -1,0 +1,85 @@
+# Runs the code checks and the unit suite, then installs Primer into a fresh Craft on MySQL and Postgres
+# and runs the integration suite, on every push and pull request.
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  php:
+    name: PHP checks and unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: bcmath, curl, dom, intl, mbstring, pdo, zip
+          coverage: none
+      - run: composer install --no-interaction --no-progress
+      - run: composer check-cs
+      - run: composer phpstan
+      - run: composer test -- unit
+
+  integration:
+    name: Integration (${{ matrix.db }}, Craft ${{ matrix.craft }}, PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        db: [mysql, pgsql]
+        craft: ['5.11.5', latest]
+        include:
+          - craft: '5.11.5'
+            php: '8.2'
+            composer: --with craftcms/cms:5.11.5
+          - craft: latest
+            php: '8.4'
+            composer: ''
+          - db: mysql
+            port: 3306
+            user: root
+          - db: pgsql
+            port: 5432
+            user: postgres
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: secret
+          MYSQL_DATABASE: primer_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -psecret"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: primer_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      CRAFT_DB_DRIVER: ${{ matrix.db }}
+      CRAFT_DB_SERVER: 127.0.0.1
+      CRAFT_DB_PORT: ${{ matrix.port }}
+      CRAFT_DB_DATABASE: primer_test
+      CRAFT_DB_USER: ${{ matrix.user }}
+      CRAFT_DB_PASSWORD: secret
+      CRAFT_DB_SCHEMA: public
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: bcmath, curl, dom, intl, mbstring, pdo, pdo_mysql, pdo_pgsql, zip
+          coverage: none
+      - run: composer update --no-interaction --no-progress ${{ matrix.composer }}
+      - run: composer show craftcms/cms | grep '^versions'
+      - run: composer test -- integration
