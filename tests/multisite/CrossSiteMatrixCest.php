@@ -15,7 +15,8 @@ use davidhellmann\primer\tests\Support\IntegrationTester;
 /**
  * Presets across sites, for every section propagation method and every field translation method (spec 4.2, 4.5,
  * section 8): each case saves a preset on site A, changes it on site B, then creates an entry on A and one on B,
- * and checks every site after each step. One of the related entries exists in the Corporate sites only.
+ * switches the preset off on B and creates both again, and checks every site after each step. One of the related
+ * entries exists in the Corporate sites only.
  *
  * The expected values come from the two tables below, written from the spec, not from Primer's code.
  */
@@ -146,6 +147,29 @@ class CrossSiteMatrixCest
             foreach (self::SITES as $site) {
                 $expected = in_array($site, $propagation[$scope], true) ? $this->inSite($after[$origin], $site, $corporateOnly->id) : null;
                 $I->assertSame($expected, $this->entryValues($entry->id, $site, $fields), "Entry created on $origin, in $site");
+            }
+        }
+
+        // 5. Switched off on B with the lightswitch: an entry created on B is never filled, in no site Craft copies
+        // it to; one created on A still is.
+        $I->amLoggedInAs(User::find()->admin()->one());
+        $I->postAction('primer/presets/toggle', ['presetId' => $presetOfB->id, 'siteId' => $I->site($b)->id, 'enabled' => '0']);
+        $empty = array_fill_keys($fields, []);
+
+        foreach ([$b => 'scopeOfB', $a => 'scopeOfA'] as $origin => $scope) {
+            $entry = new Entry([
+                'sectionId' => $preset->sectionId,
+                'typeId' => $preset->typeId,
+                'siteId' => $I->site($origin)->id,
+                'title' => "Created on $origin, $b switched off",
+            ]);
+            $I->saveElement($entry);
+
+            foreach (self::SITES as $site) {
+                $expected = in_array($site, $propagation[$scope], true)
+                    ? ($origin === $b ? $empty : $this->inSite($after[$a], $site, $corporateOnly->id))
+                    : null;
+                $I->assertSame($expected, $this->entryValues($entry->id, $site, $fields), "Entry created on $origin with $b switched off, in $site");
             }
         }
     }

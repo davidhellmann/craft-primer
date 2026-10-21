@@ -1,0 +1,13 @@
+{# Craft's lightswitch for a preset line: on or off in the preset's site, the one the screen is about. `_nav` posts
+   the change and dims the line. #}
+{% import '_includes/forms' as forms %}
+{% set label = 'Enabled'|t('app') %}
+{{ forms.lightswitch({
+    on: on,
+    small: true,
+    containerAttributes: {
+        title: label,
+        aria: { label: label },
+        data: { 'primer-toggle': { presetId: preset.id, siteId: preset.siteId } },
+    },
+}) }}
