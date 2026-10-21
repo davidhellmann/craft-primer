@@ -127,6 +127,17 @@ class PresetScreensCest
         $I->see('Writers', '[data-primer-add-menu] li:not(.hidden) .menu-item');
     }
 
+    public function craftRendersTheAssetsFieldWithoutAWarning(IntegrationTester $I): void
+    {
+        $preset = $I->preset('news', 'article', ['heroImage' => []]);
+
+        $I->amOnPage("/admin/primer/presets/$preset->id");
+
+        $I->seeResponseCodeIs(200);
+        $I->seeElement('[data-primer-field="' . $I->layoutElementUid('article', 'heroImage') . '"] .elementselect');
+        $I->dontSee('invalid volume');
+    }
+
     public function saveAndContinueEditingIsTheSaveShortcut(IntegrationTester $I): void
     {
         $I->amOnPage($this->newPresetUrl($I, 'article'));
