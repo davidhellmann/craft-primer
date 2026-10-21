@@ -8,6 +8,7 @@ use craft\elements\Asset;
 use craft\elements\Entry;
 use craft\elements\User;
 use craft\fieldlayoutelements\CustomField;
+use craft\helpers\Json;
 use craft\models\EntryType;
 use craft\models\Section;
 use davidhellmann\primer\elements\Preset;
@@ -124,5 +125,37 @@ class IntegrationTester extends Actor
         $this->saveElement($preset);
 
         return $preset;
+    }
+
+    /**
+     * A CP screen as `Craft.CpScreenSlideout` requests it: a GET to the action, answered with JSON.
+     *
+     * @param array<string, mixed> $params
+     * @return array<string, mixed> The screen's parts: `content`, `extraToolbarItems`, `actionMenu`, `editUrl`, …
+     */
+    public function slideout(string $action, array $params = []): array
+    {
+        $this->haveHttpHeader('Accept', 'application/json');
+        $this->sendAjaxGetRequest("/admin/actions/$action", $params);
+        $this->deleteHeader('Accept');
+        $this->seeResponseCodeIs(200);
+
+        return Json::decode($this->grabPageSource());
+    }
+
+    /**
+     * A POST as the CP's scripts send it with `Craft.sendActionRequest`, answered with JSON.
+     *
+     * @param array<string, mixed> $params
+     * @return array<string, mixed> The decoded answer; empty when it isn't JSON.
+     */
+    public function postAction(string $action, array $params = []): array
+    {
+        $this->haveHttpHeader('Accept', 'application/json');
+        $this->sendAjaxPostRequest("/admin/actions/$action", $params);
+        $this->deleteHeader('Accept');
+        $data = Json::decodeIfJson($this->grabPageSource());
+
+        return is_array($data) ? $data : [];
     }
 }

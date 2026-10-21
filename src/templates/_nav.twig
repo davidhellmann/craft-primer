@@ -1,0 +1,108 @@
+{# Behaviour shared by every screen (index, section, preset; page or slideout), registered once per page even when
+   screens load into slideouts. Scripts use data attributes only, since slideout content is namespaced.
+
+   - `[data-primer-nav]` links: a click opens the page, a double-click the same screen as `Craft.CpScreenSlideout`,
+     Meta/Ctrl-click a new tab (the browser's own). The attribute holds `{ action, params, form }`; `form: false`
+     for a screen without a form. A slideout opened from a slideout stacks on top of it.
+   - Saving in a slideout reloads the screen underneath.
+   - `[data-primer-delete]`: confirm, delete; on a page with a real POST, so Craft redirects and shows the message
+     there; in a slideout (only the ×: Craft leaves destructive ⋯ items out of slideouts) in the background, then the
+     slideout reloads. #}
+{% js %}
+(() => {
+    if (window.primerNav) {
+        return;
+    }
+    window.primerNav = true;
+
+    // The slideout an element sits in, or null on the page. Craft moves disclosure menus to the end of the body,
+    // so a menu item is found through its menu's trigger button.
+    const slideoutOf = (element) => {
+        const menu = $(element).closest('.menu--disclosure').data('trigger');
+        return $(menu ? menu.$trigger : element).closest('.slideout').data('slideout') || null;
+    };
+    const reload = (slideout) => slideout ? slideout.reload() : window.location.reload();
+
+    const openSlideout = (link) => {
+        const { action, params, form = true } = JSON.parse(link.dataset.primerNav);
+        const underneath = slideoutOf(link);
+        const slideout = new Craft.CpScreenSlideout(action, {
+            params,
+            containerElement: form ? 'form' : 'div',
+        });
+        slideout.on('submit', () => reload(underneath));
+    };
+
+    // A single click waits a moment, so a double-click can claim it.
+    let clickTimer = null;
+    $(document).on('click', '[data-primer-nav]', function(event) {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+            return;
+        }
+        event.preventDefault();
+        clearTimeout(clickTimer);
+        const href = this.href;
+        clickTimer = setTimeout(() => { window.location.href = href; }, 250);
+    });
+    $(document).on('dblclick', '[data-primer-nav]', function(event) {
+        event.preventDefault();
+        clearTimeout(clickTimer);
+        openSlideout(this);
+    });
+
+    const deletePreset = async (trigger) => {
+        const { primerDelete, primerConfirm, primerRedirect } = trigger.dataset;
+        const slideout = slideoutOf(trigger);
+        if (!confirm(primerConfirm)) {
+            return;
+        }
+        const params = JSON.parse(primerDelete);
+
+        if (!slideout) {
+            const $form = Craft.createForm().addClass('hidden').append(Craft.getCsrfInput()).appendTo(Garnish.$bod);
+            Craft.submitForm($form, { action: 'primer/presets/delete', params, redirect: primerRedirect });
+            return;
+        }
+
+        try {
+            const { data } = await Craft.sendActionRequest('POST', 'primer/presets/delete', { data: params });
+            Craft.cp.displaySuccess(data.message);
+        } catch (e) {
+            Craft.cp.displayError(e?.response?.data?.message);
+            return;
+        }
+        reload(slideout);
+    };
+    $(document).on('click', '[data-primer-delete]', function(event) {
+        event.preventDefault();
+        deletePreset(this);
+    });
+    $(document).on('keydown', 'a[data-primer-delete]', function(event) {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            deletePreset(this);
+        }
+    });
+})();
+{% endjs %}
+
+{% css %}
+    .cp-icon.primer-neutral { --icon-color: var(--ui-control-color); color: var(--ui-control-color); }
+
+    /* Craft's crumb rules (cp.css, bound to #crumb-list), on a class so they work in a slideout header. Craft draws
+       the arrow across the header's full height, so the list stretches to it as #crumb-list does. */
+    .primer-slideout-crumbs { order: -1; }
+    .primer-slideout-crumbs ul { display: flex; flex-flow: row nowrap; align-items: stretch; height: var(--header-height, 50px); margin-block: calc((var(--header-height, 50px) - 28px) / -2); margin-inline: 0; padding: 0; list-style: none;
+        --arrow-height: 22; --arrow-angle: 35; --arrow-width: 17.1111; --arrow-c: 27.871; }
+    .primer-slideout-crumbs li.crumb { display: flex; align-items: center; position: relative; color: var(--light-text-color); padding-inline-start: calc(var(--arrow-width) * .5rem / 16); }
+    .primer-slideout-crumbs li.crumb:first-child { padding-inline-start: 0; }
+    .primer-slideout-crumbs li.crumb:not(.current) { padding-inline-end: calc(var(--arrow-width) * 1.125rem / 16); }
+    .primer-slideout-crumbs li.crumb:not(.current)::before, .primer-slideout-crumbs li.crumb:not(.current)::after {
+        content: ''; display: block; position: absolute; width: 1px; height: calc(var(--arrow-c) * 1rem / 16);
+        inset-inline-end: calc(var(--arrow-width) * .5rem / 16); background: var(--border-hairline-medium); pointer-events: none; }
+    .primer-slideout-crumbs li.crumb:not(.current)::before { inset-block-start: calc((var(--arrow-height) - var(--arrow-c)) / 2 * 1rem / 16); transform: rotate(calc(var(--arrow-angle) * -1deg)); }
+    .primer-slideout-crumbs li.crumb:not(.current)::after { inset-block-end: calc((var(--arrow-height) - var(--arrow-c)) / 2 * 1rem / 16); transform: rotate(calc(var(--arrow-angle) * 1deg)); }
+    .primer-slideout-crumbs .crumb-link { display: inline-flex; align-items: center; gap: 6px; color: inherit; }
+    .primer-slideout-crumbs .current .crumb-link { color: var(--text-color); }
+    body.rtl .primer-slideout-crumbs ul { --arrow-angle: -35; }
+{% endcss %}
