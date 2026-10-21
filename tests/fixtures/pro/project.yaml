@@ -5,8 +5,11 @@
 # translation method (entriesNone, entriesSite, entriesSiteGroup, entriesLanguage, assets…, users…).
 # The Entries fields relate to Library (Custom propagation, entry type Book), so a test can create the entries it
 # relates to in some sites only. Images is the Solo fixture's volume (`@primerTestAssets`, see general.php).
+# Features (All propagation, every site) has Page and Feature. Feature holds entriesSite and the Content Block
+# `teaser`: teaserEntries (translation none, at most 2), teaserAssets (site), teaserUsers (language), and the
+# Plain Text teaserText (none), which a preset doesn't hold.
 # Generated through Craft's API; system.schemaVersion must equal Craft's own schema version.
-dateModified: 1792574169
+dateModified: 1792577938
 email:
   fromEmail: primer@example.com
   fromName: Primer
@@ -31,22 +34,29 @@ meta:
     44d2f40f-5058-4851-a88f-3f9fbd6708b6: 'Entries (none)' # Entries (none)
     78effd16-c993-41d0-8e6d-21586c357711: 'Assets (site)' # Assets (site)
     323edce8-0161-4b21-bd85-8268d5fb48b8: 'Pages (custom)' # Pages (custom)
+    378d421a-de24-4c89-98d8-93689906a63f: Teaser # Teaser
     484b0df5-96d2-453e-894f-1ddba9c9a662: 'Pages (none)' # Pages (none)
     509ce69f-a162-4fcb-9a42-2b30f1148e17: 'Assets (siteGroup)' # Assets (siteGroup)
     4365a9b3-457e-4ce4-b5a6-937ddc312ad2: Shop # Shop
+    04861ad6-82f2-4bee-85a6-1f04bc55855c: Features # Features
     18601fc7-4d0e-4325-b236-84ea136959ef: 'Entries (language)' # Entries (language)
     399718cb-7a07-4e48-91e7-bbb3907baa01: 'Entries (site)' # Entries (site)
     409988d9-c35e-437c-ab10-bec7dc89b02f: 'Assets (language)' # Assets (language)
     a087e3f6-3409-4200-8cbd-97c27663b298: 'Users (none)' # Users (none)
+    abf7c98a-b84d-40c0-83cb-41e0d81af531: Feature # Feature
     b011de47-c0f8-4371-90d3-4e679ed03dc7: Book # Book
     b9c3c896-0ad4-452e-9be3-811836968035: Page # Page
     b49254ba-851b-4e35-8d81-3ea485c05c1f: 'Pages (language)' # Pages (language)
     bcad4e2f-aa19-4a2c-9cc7-1e729201836a: 'Assets (none)' # Assets (none)
+    c47c1fc1-3b67-40a7-824a-57b2da893eb6: 'Teaser entries (none)' # Teaser entries (none)
+    d4578a77-eb77-4b0a-8aa4-3b12031fa1fc: 'Teaser text' # Teaser text
     e685ef00-6c44-4cf4-83e9-10b7cd2e9dab: 'Users (language)' # Users (language)
     e6018f67-0957-4dac-9fe8-095483280536: 'Pages (site group)' # Pages (site group)
     ec0efb88-f98e-4c51-b157-32a624f09655: 'Shop FR' # Shop FR
     f20c7854-1490-4992-8f59-de98dad5308b: 'Pages (all)' # Pages (all)
     f47717f0-7cd5-44f4-9974-39dbebc03a97: 'Entries (siteGroup)' # Entries (siteGroup)
+    fb277690-d528-4962-8f4c-4cad290b6255: 'Teaser assets (site)' # Teaser assets (site)
+    fd76bcee-96c3-4769-bec5-b52919ea92f1: 'Teaser users (language)' # Teaser users (language)
 system:
   edition: pro
   live: true

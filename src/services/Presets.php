@@ -4,6 +4,7 @@ namespace davidhellmann\primer\services;
 
 use Craft;
 use craft\db\Table;
+use craft\elements\ContentBlock;
 use craft\fieldlayoutelements\CustomField;
 use craft\helpers\Db;
 use craft\models\EntryType;
@@ -88,9 +89,9 @@ class Presets extends Component
     }
 
     /**
-     * Forgets the presets' relations in fields that left the entry type's layout. Craft reads a relation field without
-     * a stored value from its relations, so a field added back (with a new layout element UID) would otherwise show
-     * the old elements again.
+     * Forgets the presets' values in fields that left the entry type's layout. Craft reads a relation field without
+     * a stored value from its relations, and a Content Block from the block its owner has for the field, so a field
+     * added back (with a new layout element UID) would otherwise show the old elements again.
      */
     public function forgetFieldsNotInLayout(EntryType $type): void
     {
@@ -109,6 +110,14 @@ class Presets extends Component
             ['sourceId' => $presetIds],
             $fieldIds ? ['not', ['fieldId' => $fieldIds]] : null,
         ]));
+
+        // A block goes with its relations: they belong to the block, not the preset.
+        $blocks = ContentBlock::find()->primaryOwnerId($presetIds)->site('*')->unique()->status(null)->all();
+        foreach ($blocks as $block) {
+            if (!in_array($block->fieldId, $fieldIds, true)) {
+                Craft::$app->getElements()->deleteElement($block, true);
+            }
+        }
     }
 
     /**

@@ -5,10 +5,12 @@ namespace davidhellmann\primer\elements;
 use Craft;
 use craft\base\Element;
 use craft\base\FieldInterface;
+use craft\elements\ContentBlock as ContentBlockElement;
 use craft\elements\User;
 use craft\fieldlayoutelements\CustomField;
 use craft\fields\Assets;
 use craft\fields\BaseRelationField;
+use craft\fields\ContentBlock;
 use craft\fields\Entries;
 use craft\fields\Users;
 use craft\helpers\Db;
@@ -98,6 +100,31 @@ class Preset extends Element
     }
 
     /**
+     * The relation fields of a Content Block field's own layout, first level only; none for any other field.
+     *
+     * @return CustomField[]
+     */
+    public static function innerRelationElements(FieldInterface $field): array
+    {
+        if (!$field instanceof ContentBlock) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $field->getFieldLayout()->getCustomFieldElements(),
+            fn(CustomField $element) => self::isRelationField($element->getField()),
+        ));
+    }
+
+    /**
+     * Whether a preset can hold the field: a relation field, or a Content Block with relation fields.
+     */
+    public static function canHold(FieldInterface $field): bool
+    {
+        return self::isRelationField($field) || self::innerRelationElements($field);
+    }
+
+    /**
      * @return string[]
      */
     public function getFieldUids(): array
@@ -152,8 +179,8 @@ class Preset extends Element
     }
 
     /**
-     * The entry type's relation fields, with the same layout element UIDs, not required, without conditions,
-     * half width, in one tab. Built, not stored: it follows the entry type's layout.
+     * The entry type's fields a preset can hold (`canHold()`), with the same layout element UIDs, not required,
+     * without conditions, half width, in one tab. Built, not stored: it follows the entry type's layout.
      */
     public function getFieldLayout(): ?FieldLayout
     {
@@ -166,24 +193,24 @@ class Preset extends Element
     }
 
     /**
-     * The relation fields of the preset's layout, chosen or not, in layout order.
+     * The fields of the preset's layout, chosen or not, in layout order.
      *
      * @return CustomField[]
      */
-    public function getRelationFieldElements(): array
+    public function getLayoutFieldElements(): array
     {
         return $this->getFieldLayout()?->getCustomFieldElements() ?? [];
     }
 
     /**
-     * The chosen relation fields that are still in the entry type's layout, in layout order.
+     * The chosen fields that are still in the entry type's layout, in layout order.
      *
      * @return CustomField[]
      */
     public function getChosenFieldElements(): array
     {
         return array_values(array_filter(
-            $this->getRelationFieldElements(),
+            $this->getLayoutFieldElements(),
             fn(CustomField $element) => in_array($element->uid, $this->_fieldUids, true),
         ));
     }
@@ -197,7 +224,7 @@ class Preset extends Element
 
         $elements = [];
         foreach ($source->getCustomFieldElements() as $element) {
-            if (!self::isRelationField($element->getField())) {
+            if (!self::canHold($element->getField())) {
                 continue;
             }
 
@@ -291,7 +318,8 @@ class Preset extends Element
     /**
      * The minimum and maximum number of relations of each chosen field.
      *
-     * Craft checks them only in the live scenario, and for every field of the layout; a preset checks the chosen ones.
+     * Craft checks them only in the live scenario, and for every field of the layout; a preset checks the chosen ones,
+     * and the relation fields of a chosen Content Block, whose form then shows the error at the field.
      */
     public function validateRelationCounts(): void
     {
@@ -299,6 +327,21 @@ class Preset extends Element
             $field = $element->getField();
             if ($field instanceof BaseRelationField) {
                 $field->validateRelationCount($this);
+                continue;
+            }
+
+            $block = $this->getFieldValue($element->attribute());
+            if (!$block instanceof ContentBlockElement) {
+                continue;
+            }
+            foreach (self::innerRelationElements($field) as $inner) {
+                $innerField = $inner->getField();
+                if ($innerField instanceof BaseRelationField) {
+                    $innerField->validateRelationCount($block);
+                }
+            }
+            if ($block->hasErrors()) {
+                $this->addModelErrors($block, $element->attribute());
             }
         }
     }
@@ -329,21 +372,27 @@ class Preset extends Element
     }
 
     /**
-     * The UIDs of the relation fields in the entry type's layout, in layout order.
+     * The UIDs of the fields of the preset's layout, in layout order.
      *
      * @return string[]
      */
     public function getLayoutFieldUids(): array
     {
-        return array_map(fn(CustomField $element) => (string)$element->uid, $this->getRelationFieldElements());
+        return array_map(fn(CustomField $element) => (string)$element->uid, $this->getLayoutFieldElements());
     }
 
     /**
-     * The value that empties a field of the preset.
+     * The value that empties a field of the preset: no relations, or none in any of a Content Block's relation fields.
+     * The block's array form sets just those, so whatever else the block holds stays.
      */
     public static function emptyValue(CustomField $element): mixed
     {
-        return [];
+        $inner = self::innerRelationElements($element->getField());
+        if (!$inner) {
+            return [];
+        }
+
+        return ['fields' => array_fill_keys(array_map(fn(CustomField $e) => $e->attribute(), $inner), [])];
     }
 
     public function beforeSave(bool $isNew): bool
@@ -354,7 +403,7 @@ class Preset extends Element
 
             // A field that isn't chosen holds no value, whatever the form posted for it.
             $unchosen = FieldChoice::unchosen($this->getLayoutFieldUids(), $this->_fieldUids);
-            foreach ($this->getRelationFieldElements() as $element) {
+            foreach ($this->getLayoutFieldElements() as $element) {
                 if (in_array($element->uid, $unchosen, true)) {
                     $this->setFieldValue($element->attribute(), self::emptyValue($element));
                 }

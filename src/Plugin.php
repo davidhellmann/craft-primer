@@ -5,11 +5,16 @@ namespace davidhellmann\primer;
 use Craft;
 use craft\base\Element;
 use craft\base\Plugin as BasePlugin;
+use craft\elements\ContentBlock;
 use craft\elements\Entry;
+use craft\events\CreateFieldLayoutFormEvent;
 use craft\events\EntryTypeEvent;
 use craft\events\ModelEvent;
 use craft\events\RegisterComponentTypesEvent;
 use craft\events\RegisterUrlRulesEvent;
+use craft\fieldlayoutelements\CustomField;
+use craft\models\FieldLayout;
+use craft\models\FieldLayoutTab;
 use craft\services\Elements;
 use craft\services\Entries;
 use craft\services\Gc;
@@ -65,6 +70,13 @@ class Plugin extends BasePlugin
             $this->applier->apply($entry, $event->isNew);
         });
 
+        // Inside a preset, a Content Block shows only its relation fields; the block's own layout stays as it is.
+        Event::on(FieldLayout::class, FieldLayout::EVENT_CREATE_FORM, function(CreateFieldLayoutFormEvent $event) {
+            if ($event->element instanceof ContentBlock && $event->element->getOwner() instanceof Preset) {
+                $event->tabs = array_map(fn(FieldLayoutTab $tab) => $this->relationFieldsOnly($tab), $event->tabs);
+            }
+        });
+
         // A preset whose section or entry type is deleted loses its row (FK cascade); GC removes the element.
         Event::on(Gc::class, Gc::EVENT_RUN, function() {
             Craft::$app->getGc()->deletePartialElements(Preset::class, Preset::TABLE, 'id');
@@ -78,5 +90,19 @@ class Plugin extends BasePlugin
         // A preset saved or deleted in this request is the one the next new entry should get.
         Event::on(Preset::class, Element::EVENT_AFTER_SAVE, fn() => $this->applier->reset());
         Event::on(Preset::class, Element::EVENT_AFTER_DELETE, fn() => $this->applier->reset());
+    }
+
+    /**
+     * A copy of a form tab with only its relation fields.
+     */
+    private function relationFieldsOnly(FieldLayoutTab $tab): FieldLayoutTab
+    {
+        $tab = clone $tab;
+        $tab->setElements(array_values(array_filter(
+            $tab->getElements(),
+            fn($element) => $element instanceof CustomField && Preset::isRelationField($element->getField()),
+        )));
+
+        return $tab;
     }
 }
