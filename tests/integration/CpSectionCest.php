@@ -5,6 +5,7 @@ namespace davidhellmann\primer\tests\integration;
 use Craft;
 use craft\elements\User;
 use craft\enums\CmsEdition;
+use davidhellmann\primer\elements\Preset;
 use davidhellmann\primer\Plugin;
 use davidhellmann\primer\tests\Support\IntegrationTester;
 
@@ -45,6 +46,25 @@ class CpSectionCest
 
         $I->amOnPage('/admin/primer');
         $I->seeResponseCodeIs(403);
+    }
+
+    public function itsScreensAndActionsAreForTheControlPanelOnly(IntegrationTester $I): void
+    {
+        $preset = $I->preset('news', 'article');
+        $I->amLoggedInAs($I->admin());
+
+        // A site request to the action URL.
+        $I->amOnPage('/actions/primer/presets/index');
+        $I->seeResponseCodeIs(400);
+
+        $I->haveHttpHeader('Accept', 'application/json');
+        $I->sendAjaxPostRequest('/actions/primer/presets/toggle', [
+            'presetId' => $preset->id,
+            'siteId' => $preset->siteId,
+            'enabled' => 0,
+        ]);
+        $I->seeResponseCodeIs(400);
+        $I->assertTrue(Preset::find()->id($preset->id)->one()->isOn());
     }
 
     /**

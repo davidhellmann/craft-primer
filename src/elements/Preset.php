@@ -296,6 +296,7 @@ class Preset extends Element
             ...parent::defineRules(),
             [['sectionId', 'typeId'], 'required', 'on' => $on],
             [['sectionId', 'typeId'], 'number', 'integerOnly' => true, 'on' => $on],
+            [['sectionId', 'typeId'], 'validateUnchanged', 'on' => $on],
             ['typeId', 'validateEntryType', 'on' => $on],
             ['siteId', 'validateSite', 'on' => $on],
             ['typeId', 'validateUnique', 'on' => $on],
@@ -312,6 +313,22 @@ class Preset extends Element
         $typeIds = array_map(fn(EntryType $type) => $type->id, $this->getSection()?->getEntryTypes() ?? []);
 
         return in_array($this->typeId, $typeIds, true);
+    }
+
+    /**
+     * A saved preset keeps its section and entry type, also when Craft's own `elements/save` is posted another: its
+     * values, field choice and scope are theirs.
+     */
+    public function validateUnchanged(string $attribute): void
+    {
+        if (!$this->id) {
+            return;
+        }
+
+        $stored = (new Query())->select($attribute)->from(self::TABLE)->where(['id' => $this->id])->scalar();
+        if (is_numeric($stored) && (int)$stored !== (int)$this->$attribute) {
+            $this->addError($attribute, Craft::t('primer', 'A saved preset keeps its section and entry type.'));
+        }
     }
 
     /**
@@ -469,6 +486,16 @@ class Preset extends Element
         if ($before !== null && FieldChoice::removed($before, $this->_fieldUids, $this->getLayoutFieldUids())) {
             $this->emptyUnchosenFieldsElsewhere();
         }
+    }
+
+    /**
+     * Presets have no trash: every delete is for good, also Craft's soft delete, its default (such as `elements/delete`).
+     */
+    public function beforeDelete(): bool
+    {
+        $this->hardDelete = true;
+
+        return parent::beforeDelete();
     }
 
     /**

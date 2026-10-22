@@ -138,4 +138,44 @@ class PresetCest
         $I->assertEqualsCanonicalizing([$article->id, $note->id], Preset::find()->sectionId($I->section('news')->id)->ids());
         $I->assertSame([], Preset::find()->sectionId($I->section('topics')->id)->ids());
     }
+
+    public function aSavedPresetKeepsItsSectionAndEntryType(IntegrationTester $I): void
+    {
+        $preset = $I->preset('news', 'article');
+
+        $preset->typeId = $I->entryType('note')->id;
+        $I->assertFalse(Craft::$app->getElements()->saveElement($preset));
+        $I->assertTrue($preset->hasErrors('typeId'));
+
+        $preset->typeId = $I->entryType('article')->id;
+        $preset->sectionId = $I->section('topics')->id;
+        $I->assertFalse(Craft::$app->getElements()->saveElement($preset));
+        $I->assertTrue($preset->hasErrors('sectionId'));
+    }
+
+    public function craftsOwnSaveActionDoesntMoveAPreset(IntegrationTester $I): void
+    {
+        $preset = $I->preset('news', 'article');
+        $I->amLoggedInAs($I->admin());
+
+        // `elements/save` sets the attributes it is posted.
+        $I->postAction('elements/save', [
+            'elementId' => $preset->id,
+            'siteId' => $preset->siteId,
+            'typeId' => $I->entryType('note')->id,
+        ]);
+
+        $I->assertSame($I->entryType('article')->id, Preset::find()->id($preset->id)->one()->typeId);
+    }
+
+    public function aDeletedPresetIsGoneForGood(IntegrationTester $I): void
+    {
+        $preset = $I->preset('news', 'article');
+
+        // Presets have no trash: Craft's default soft delete, such as `elements/delete`, deletes them for good too.
+        Craft::$app->getElements()->deleteElement($preset);
+
+        $I->assertFalse((new Query())->from(Table::ELEMENTS)->where(['id' => $preset->id])->exists());
+        $I->assertFalse((new Query())->from(Preset::TABLE)->where(['id' => $preset->id])->exists());
+    }
 }

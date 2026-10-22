@@ -29,6 +29,7 @@ class PresetsController extends Controller
             return false;
         }
 
+        $this->requireCpRequest();
         $this->requirePermission(Plugin::ACCESS_PERMISSION);
 
         return true;
