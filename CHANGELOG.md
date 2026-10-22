@@ -1,6 +1,6 @@
 # Release Notes for Primer
 
-## 1.0.0 - 2026-10-21
+## 1.0.0 - 2026-10-22
 
 ### Added
 - Presets for the Entries, Assets and Users fields of an entry type in a section, filled into a new entry's empty fields once, when it is created or switches entry type.
