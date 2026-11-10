@@ -2,6 +2,7 @@
 
 namespace davidhellmann\primer\tests\Feature;
 
+use CraftCms\Cms\Support\Facades\Sections;
 use CraftCms\Cms\User\Models\User;
 use CraftCms\Cms\Cp\Data\NavItem;
 use davidhellmann\primer\elements\Preset;
@@ -130,6 +131,22 @@ class CpTest extends TestCase
             'fieldUids' => [$this->layoutElementUid('article', 'writers'), $this->layoutElementUid('article', 'topics')],
         ]);
         $this->assertSame(['sectionId', 'typeId', 'fieldUids', 'fields.topics', 'fields.writers'], $this->controlPaths($ui));
+    }
+
+    public function testANewPresetOffersOnlyEntryTypesWithRelationFields(): void
+    {
+        $news = $this->section('news');
+        $news->setEntryTypes([$this->entryType('article'), $this->entryType('note'), $this->entryType('topic')]);
+        $this->assertTrue(Sections::saveSection($news));
+        $this->actingAs($this->userWith(['accessCp', 'accessPlugin-primer']));
+        $this->get(cp_url('primer/presets/new'));
+        $draft = Preset::find()->drafts()->one();
+
+        $ui = $this->refresh($draft, ['sectionId' => $news->id]);
+
+        // Topics has no section option: its only entry type, Topic, has no relation fields. Nor does News offer Topic.
+        $this->assertSame(['News'], array_column($this->control($ui, 'sectionId')['props']['options'], 'label'));
+        $this->assertSame(['Article', 'Note'], array_column($this->control($ui, 'typeId')['props']['options'], 'label'));
     }
 
     public function testCreatingAPresetStoresItsChoiceAndValues(): void
