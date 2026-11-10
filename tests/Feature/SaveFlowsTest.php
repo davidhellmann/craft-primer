@@ -194,7 +194,8 @@ class SaveFlowsTest extends TestCase
 
         $queries = 0;
         DB::listen(function(QueryExecuted $query) use (&$queries) {
-            if (preg_match('/^select .* from "?' . Preset::TABLE . '"?/i', $query->sql)) {
+            // Quoted as the database driver quotes it.
+            if (preg_match('/^select .* from ["`]?' . Preset::TABLE . '\b/i', $query->sql)) {
                 $queries++;
             }
         });
