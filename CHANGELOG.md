@@ -1,6 +1,6 @@
 # Release Notes for Primer
 
-## 2.0.0-beta.1 - Unreleased
+## 2.0.0-beta.1 - 2026-11-11
 
 ### Changed
 - Primer now requires Craft CMS 6 (6.0.0-beta.1 or later) and PHP 8.5. Primer 1.x stays the version for Craft CMS 5.
@@ -13,6 +13,11 @@
 
 ### Removed
 - Primer's own index, section page and preset screen, with their lightswitches, delete buttons and slideout crumbs. Craft's element index and editor do all of it.
+
+## 1.0.1 - 2026-11-11
+
+### Fixed
+- Primer's index no longer lists sections whose entry types have no relation fields, and neither the index nor a section page offers a preset for such an entry type: there's nothing a preset could hold.
 
 ## 1.0.0 - 2026-10-22
 
