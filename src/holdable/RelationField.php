@@ -2,14 +2,17 @@
 
 namespace davidhellmann\primer\holdable;
 
-use craft\base\ElementInterface;
-use craft\base\FieldInterface;
-use craft\elements\db\ElementQueryInterface;
-use craft\fieldlayoutelements\CustomField;
-use craft\fields\Assets;
-use craft\fields\BaseRelationField;
-use craft\fields\Entries;
-use craft\fields\Users;
+use CraftCms\Cms\Element\Contracts\ElementInterface;
+use CraftCms\Cms\Element\ElementCollection;
+use CraftCms\Cms\Element\Queries\Contracts\ElementQueryInterface;
+use CraftCms\Cms\Field\Assets;
+use CraftCms\Cms\Field\BaseRelationField;
+use CraftCms\Cms\Field\Contracts\FieldInterface;
+use CraftCms\Cms\Field\Entries;
+use CraftCms\Cms\Field\Users;
+use CraftCms\Cms\FieldLayout\LayoutElements\CustomField;
+use davidhellmann\primer\elements\Preset;
+use Illuminate\Support\Facades\Validator;
 use davidhellmann\primer\decisions\Truncation;
 
 /**
@@ -35,20 +38,25 @@ final class RelationField extends HoldableField
         return self::isRelationField($element->getField()) ? new self($element) : null;
     }
 
-    public function emptyValue(): array
+    public function validateIn(Preset $preset): void
     {
-        return [];
+        $this->validateOn($preset);
     }
 
     /**
-     * Also checks the field in a preset's Content Block, on the block.
+     * Checks the field's number of relations on its owner: a preset, or a preset's Content Block.
      */
-    public function validateIn(ElementInterface $owner): void
+    public function validateOn(ElementInterface $owner): void
     {
         $field = $this->element->getField();
-        if ($field instanceof BaseRelationField) {
-            $field->validateRelationCount($owner);
+        $value = $owner->getFieldValue($this->handle());
+        if (!$field instanceof BaseRelationField || !($value instanceof ElementQueryInterface || $value instanceof ElementCollection)) {
+            return;
         }
+
+        $validator = Validator::make([], []);
+        $field->validateRelationCount($owner, $this->handle(), $value, $validator);
+        $owner->errors()->merge($validator->errors());
     }
 
     public function fill(ElementInterface $target, mixed $presetValue): bool
@@ -72,13 +80,15 @@ final class RelationField extends HoldableField
      */
     public function ids(mixed $presetValue): array
     {
-        if (!$presetValue instanceof ElementQueryInterface) {
-            return [];
-        }
+        $ids = match (true) {
+            $presetValue instanceof ElementQueryInterface => $presetValue->status(null)->ids(),
+            $presetValue instanceof ElementCollection => $presetValue->ids()->all(),
+            default => [],
+        };
 
         $field = $this->element->getField();
         $maximum = $field instanceof BaseRelationField ? $field->maxRelations : null;
 
-        return Truncation::toMaximum($presetValue->status(null)->ids(), $maximum);
+        return Truncation::toMaximum(array_map('intval', $ids), $maximum);
     }
 }

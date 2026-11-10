@@ -2,10 +2,10 @@
 
 namespace davidhellmann\primer\holdable;
 
-use craft\base\ElementInterface;
-use craft\elements\ContentBlock as ContentBlockElement;
-use craft\fieldlayoutelements\CustomField;
-use craft\fields\ContentBlock as ContentBlockFieldType;
+use CraftCms\Cms\Element\Contracts\ElementInterface;
+use CraftCms\Cms\Field\ContentBlock as ContentBlockFieldType;
+use CraftCms\Cms\Field\Elements\ContentBlock as ContentBlockElement;
+use CraftCms\Cms\FieldLayout\LayoutElements\CustomField;
 use davidhellmann\primer\elements\Preset;
 
 /**
@@ -40,15 +40,6 @@ final class ContentBlock extends HoldableField
     }
 
     /**
-     * No relations in any of the block's relation fields. The block's array form sets just those, so whatever else
-     * the block holds stays.
-     */
-    public function emptyValue(): array
-    {
-        return ['fields' => array_fill_keys(array_map(fn(RelationField $inner) => $inner->handle(), $this->inner), [])];
-    }
-
-    /**
      * Checks the block's relation fields, and shows their errors at the block. A preset that was never saved can't
      * fill a block yet (Craft shows its message instead), so an empty field isn't held to a minimum.
      */
@@ -60,12 +51,12 @@ final class ContentBlock extends HoldableField
         }
 
         foreach ($this->inner as $inner) {
-            if ($preset->id || !$block->isFieldEmpty($inner->handle())) {
-                $inner->validateIn($block);
+            if (($preset->id && !$preset->getIsUnpublishedDraft()) || !$block->isFieldEmpty($inner->handle())) {
+                $inner->validateOn($block);
             }
         }
 
-        if ($block->hasErrors()) {
+        if ($block->errors()->isNotEmpty()) {
             $preset->addModelErrors($block, $this->handle());
         }
     }

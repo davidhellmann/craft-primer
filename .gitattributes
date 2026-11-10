@@ -6,15 +6,17 @@ CHANGELOG.md export-ignore
 CLAUDE.md export-ignore
 CODING_STANDARDS.md export-ignore
 GLOSSARY.md export-ignore
-codeception.yml export-ignore
+docs/ export-ignore
 README.md export-ignore
 composer.lock export-ignore
-ecs.php export-ignore
 package-lock.json export-ignore
 package.json export-ignore
 phpstan.neon export-ignore
+phpunit.xml.dist export-ignore
+pint.json export-ignore
 playwright.config.mjs export-ignore
-resources/ export-ignore
+# The README's pictures. The rest of resources/ is what Craft loads: the icons.
+resources/*.png export-ignore
 tests/ export-ignore
 
 # Auto-detect text files and perform LF normalization

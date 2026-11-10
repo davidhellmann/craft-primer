@@ -2,43 +2,27 @@
 
 namespace davidhellmann\primer\services;
 
-use Craft;
-use craft\db\Query;
-use craft\db\Table;
-use craft\elements\ContentBlock;
-use craft\fieldlayoutelements\CustomField;
-use craft\fields\ContentBlock as ContentBlockField;
-use craft\helpers\ArrayHelper;
-use craft\helpers\Db;
-use craft\helpers\Json;
-use craft\models\FieldLayout;
+use CraftCms\Cms\Database\Table;
+use CraftCms\Cms\Field\ContentBlock as ContentBlockField;
+use CraftCms\Cms\Field\Elements\ContentBlock;
+use CraftCms\Cms\Field\Events\FieldLayoutSaved;
+use CraftCms\Cms\FieldLayout\FieldLayout;
 use davidhellmann\primer\decisions\LayoutChange;
 use davidhellmann\primer\elements\Preset;
-use yii\base\Component;
+use Illuminate\Container\Attributes\Singleton;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Forgets the presets' values of fields that leave a field layout: an entry type's, or a Content Block's own layout
- * inside a preset. Craft's field layout events call it around every layout save.
+ * inside a preset. Listens to every field layout save.
  */
-class LayoutCleanup extends Component
+#[Singleton]
+class LayoutCleanup
 {
-    /**
-     * @var array<string, array<string, string>> Field UIDs by layout element UID of the layouts being saved, by
-     *     layout UID, as they were before.
-     */
-    private array $_layoutsBefore = [];
-
-    /**
-     * Notes a field layout's elements before Craft saves it over, for `forgetFieldsThatLeft()` afterwards.
-     */
-    public function rememberLayout(FieldLayout $layout): void
-    {
-        if (!$layout->id || !$layout->uid) {
-            return;
-        }
-
-        $config = (new Query())->select('config')->from(Table::FIELDLAYOUTS)->where(['id' => $layout->id])->scalar();
-        $this->_layoutsBefore[$layout->uid] = $this->fieldUidsByElement(is_string($config) ? Json::decode($config) : null);
+    public function __construct(
+        private readonly PresetValues $presetValues,
+        private readonly Applier $applier,
+    ) {
     }
 
     /**
@@ -46,26 +30,24 @@ class LayoutCleanup extends Component
      * field removed and added back, also in one save, or one of two instances of a field removed, can't bring the old
      * value back (`LayoutChange`).
      */
-    public function forgetFieldsThatLeft(FieldLayout $layout): void
+    public function handle(FieldLayoutSaved $event): void
     {
-        $before = $layout->uid ? ArrayHelper::remove($this->_layoutsBefore, $layout->uid) : null;
-        if ($before === null) {
+        $this->applier->reset();
+
+        if ($event->isNew || $event->previousConfig === null) {
             return;
         }
 
-        $left = LayoutChange::leftFields($before, $this->fieldUidsByElement($layout->getConfig()));
-        $fieldIds = $left ? array_values(Db::idsByUids(Table::FIELDS, $left)) : [];
-        $ownerIds = $fieldIds ? $this->ownersOf($layout) : [];
-        if (!$ownerIds) {
-            return;
-        }
+        $left = LayoutChange::leftFields(
+            $this->fieldUidsByElement($event->previousConfig),
+            $this->fieldUidsByElement($event->layout->getConfig()),
+        );
+        $fieldIds = $left
+            ? array_values(array_map('intval', DB::table(Table::FIELDS)->idsByUids($left)))
+            : [];
 
-        Db::delete(Table::RELATIONS, ['sourceId' => $ownerIds, 'fieldId' => $fieldIds]);
-
-        // A block goes with its relations: they belong to the block, not the preset.
-        $blocks = ContentBlock::find()->primaryOwnerId($ownerIds)->fieldId($fieldIds)->site('*')->unique()->status(null)->all();
-        foreach ($blocks as $block) {
-            Craft::$app->getElements()->deleteElement($block, true);
+        if ($fieldIds) {
+            $this->presetValues->forget($this->ownersOf($event->layout), $fieldIds);
         }
     }
 
@@ -78,20 +60,21 @@ class LayoutCleanup extends Component
     private function ownersOf(FieldLayout $layout): array
     {
         if ($layout->provider instanceof ContentBlockField) {
-            $presetIds = Preset::find()->site('*')->unique()->ids();
+            $presetIds = Preset::find()->site('*')->unique()->drafts(null)->ids();
 
             return $presetIds
                 ? ContentBlock::find()->fieldId($layout->provider->id)->primaryOwnerId($presetIds)->site('*')->unique()->status(null)->ids()
                 : [];
         }
 
-        $typeIds = (new Query())->select('id')->from(Table::ENTRYTYPES)->where(['fieldLayoutId' => $layout->id])->column();
+        $typeIds = DB::table(Table::ENTRYTYPES)->where('fieldLayoutId', $layout->id)->pluck('id')->all();
 
-        return $typeIds ? Preset::find()->typeId($typeIds)->site('*')->unique()->ids() : [];
+        return $typeIds ? Preset::find()->typeId($typeIds)->site('*')->unique()->drafts(null)->ids() : [];
     }
 
     /**
-     * The custom fields of a field layout's config: field UIDs by layout element UID.
+     * The custom fields of a field layout's config: field UIDs by layout element UID. A layout element with a field
+     * UID is a custom field, whatever Craft version wrote its type.
      *
      * @param array<string, mixed>|null $config
      * @return array<string, string>
@@ -101,7 +84,7 @@ class LayoutCleanup extends Component
         $fieldUids = [];
         foreach ($config['tabs'] ?? [] as $tab) {
             foreach ($tab['elements'] ?? [] as $element) {
-                if (($element['type'] ?? null) === CustomField::class && isset($element['uid'], $element['fieldUid'])) {
+                if (isset($element['uid'], $element['fieldUid'])) {
                     $fieldUids[$element['uid']] = $element['fieldUid'];
                 }
             }

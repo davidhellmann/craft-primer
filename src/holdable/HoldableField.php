@@ -2,13 +2,13 @@
 
 namespace davidhellmann\primer\holdable;
 
-use craft\base\ElementInterface;
-use craft\fieldlayoutelements\CustomField;
+use CraftCms\Cms\Element\Contracts\ElementInterface;
+use CraftCms\Cms\FieldLayout\LayoutElements\CustomField;
 use davidhellmann\primer\elements\Preset;
 
 /**
  * A holdable field: a layout element whose field a preset can hold, a relation field or a Content Block with relation
- * fields. One adapter per kind; the preset, the Applier and the form ask it what to do instead of telling the kinds
+ * fields. One adapter per kind; the preset and the Applier ask it what to do instead of telling the kinds
  * apart themselves.
  */
 abstract class HoldableField
@@ -35,12 +35,8 @@ abstract class HoldableField
     }
 
     /**
-     * The value that empties the field in a preset.
-     */
-    abstract public function emptyValue(): mixed;
-
-    /**
-     * Adds an error to the preset where the field holds fewer or more relations than it allows.
+     * Adds an error to the preset where the field holds fewer or more relations than it allows. Craft checks them
+     * only when it saves an enabled element in the control panel (its live scenario), and on the preset's own fields.
      */
     abstract public function validateIn(Preset $preset): void;
 

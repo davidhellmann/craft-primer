@@ -2,7 +2,7 @@
 
 namespace davidhellmann\primer\decisions;
 
-use craft\enums\PropagationMethod;
+use CraftCms\Cms\Element\Enums\PropagationMethod;
 
 /**
  * The sites a preset spans: the sites a new entry of its section, created in the preset's site, would be saved to,

@@ -27,17 +27,15 @@
         "rss": "https://github.com/davidhellmann/craft-primer/releases.atom"
     },
     "require": {
-        "php": ">=8.2",
-        "craftcms/cms": "^5.11.5"
+        "php": "^8.5",
+        "craftcms/cms": "^6.0.0-beta.1"
     },
     "require-dev": {
-        "codeception/codeception": "^5.2",
-        "codeception/module-asserts": "^3.0",
-        "codeception/module-yii2": "^1.1.9",
-        "craftcms/ecs": "dev-main",
-        "craftcms/phpstan": "dev-main",
+        "larastan/larastan": "^3.13",
+        "laravel/pint": "^1.22",
+        "orchestra/testbench": "^11.0",
         "phpstan/phpstan": "^2.1",
-        "vlucas/phpdotenv": "^5.4.1"
+        "phpunit/phpunit": "^12.0"
     },
     "autoload": {
         "psr-4": {
@@ -54,25 +52,25 @@
         "name": "Primer",
         "developer": "David Hellmann",
         "developerUrl": "https://davidhellmann.com",
-        "documentationUrl": "https://github.com/davidhellmann/craft-primer"
+        "documentationUrl": "https://github.com/davidhellmann/craft-primer",
+        "class": "davidhellmann\\primer\\Plugin"
     },
     "scripts": {
-        "check-cs": "ecs check --ansi",
-        "fix-cs": "ecs check --ansi --fix",
-        "phpstan": [
-            "codecept build --quiet",
-            "phpstan --memory-limit=1G"
-        ],
-        "test": "codecept run"
+        "check-cs": "pint --test",
+        "fix-cs": "pint",
+        "phpstan": "phpstan --memory-limit=1G",
+        "test": "phpunit"
     },
     "config": {
         "sort-packages": true,
         "platform": {
-            "php": "8.2"
+            "php": "8.5"
         },
         "allow-plugins": {
-            "yiisoft/yii2-composer": true,
-            "craftcms/plugin-installer": true
+            "craftcms/plugin-installer": true,
+            "php-http/discovery": true
         }
-    }
+    },
+    "minimum-stability": "alpha",
+    "prefer-stable": true
 }

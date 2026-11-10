@@ -2,38 +2,61 @@
 
 namespace davidhellmann\primer\elements;
 
-use Craft;
-use craft\base\Element;
-use craft\db\Query;
-use craft\db\Table;
-use craft\elements\User;
-use craft\fieldlayoutelements\CustomField;
-use craft\helpers\Db;
-use craft\helpers\Json;
-use craft\models\EntryType;
-use craft\models\FieldLayout;
-use craft\models\Section;
+use CraftCms\Cms\Component\Contracts\Colorable;
+use CraftCms\Cms\Component\Contracts\Iconic;
+use CraftCms\Cms\Cp\Data\ActionItem;
+use CraftCms\Cms\Element\Actions\Duplicate;
+use CraftCms\Cms\Database\Table;
+use CraftCms\Cms\Element\Element;
+use CraftCms\Cms\Element\ElementHelper;
+use CraftCms\Cms\Entry\Data\EntryType;
+use CraftCms\Cms\FieldLayout\FieldLayout;
+use CraftCms\Cms\FieldLayout\LayoutElements\CustomField;
+use CraftCms\Cms\Section\Data\Section;
+use CraftCms\Cms\Support\Facades\Elements;
+use CraftCms\Cms\Support\Facades\EntryTypes;
+use CraftCms\Cms\Support\Facades\Sections;
+use CraftCms\Cms\Support\Facades\Sites;
+use CraftCms\Cms\Support\Html;
+use CraftCms\Cms\Shared\Enums\Color;
+use CraftCms\Cms\Support\Json;
+use CraftCms\Cms\Support\Url;
+use CraftCms\RulesetValidation\Attributes\Ruleset;
 use davidhellmann\primer\decisions\FieldChoice;
 use davidhellmann\primer\decisions\Scope;
-use davidhellmann\primer\decisions\Status;
 use davidhellmann\primer\elements\db\PresetQuery;
+use davidhellmann\primer\fieldlayoutelements\EntryTypeField;
+use davidhellmann\primer\fieldlayoutelements\FieldChoiceField;
+use davidhellmann\primer\fieldlayoutelements\SectionField;
 use davidhellmann\primer\holdable\HoldableField;
-use davidhellmann\primer\Plugin;
+use davidhellmann\primer\holdable\RelationField;
+use davidhellmann\primer\models\Preset as PresetModel;
+use davidhellmann\primer\services\Presets;
+use davidhellmann\primer\services\PresetValues;
+use davidhellmann\primer\validation\PresetRules;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Validator as LaravelValidator;
+use Override;
+
+use function CraftCms\Cms\t;
 
 /**
  * The starting elements for the chosen relation fields of one entry type in one section.
  *
- * Its field layout is built from the entry type's, with the same layout element UIDs, so Craft stores,
- * relates and propagates a preset's values exactly as it does an entry's, and they map one to one.
+ * Its field layout is built from the entry type's chosen fields, with the same layout element UIDs, so Craft stores,
+ * relates and propagates a preset's values exactly as it does an entry's, and they map one to one. Craft's own element
+ * editor edits it; until it's saved for the first time, the layout starts with its section and entry type.
  *
  * The presets of an entry type, one per scope, share their field choice and their fate: every save and delete keeps
  * them so, whoever saves or deletes, so the rules hold for Craft's own saves too.
  *
  * @property string[] $fieldUids
  */
-class Preset extends Element
+/** @phpstan-ignore argument.type (Craft's own element types declare their rulesets the same way.) */
+#[Ruleset(PresetRules::class)]
+class Preset extends Element implements Colorable, Iconic
 {
-    public const TABLE = '{{%primer_presets}}';
+    public const TABLE = 'primer_presets';
 
     public ?int $sectionId = null;
     public ?int $typeId = null;
@@ -49,78 +72,173 @@ class Preset extends Element
     private ?array $_choiceBefore = null;
 
     private ?FieldLayout $_fieldLayout = null;
-    private ?int $_fieldLayoutTypeId = null;
+    private ?string $_fieldLayoutKey = null;
 
+    #[Override]
     public static function displayName(): string
     {
-        return Craft::t('primer', 'Preset');
+        return t('Preset', category: 'primer');
     }
 
+    #[Override]
     public static function lowerDisplayName(): string
     {
-        return Craft::t('primer', 'preset');
+        return t('preset', category: 'primer');
     }
 
+    #[Override]
     public static function pluralDisplayName(): string
     {
-        return Craft::t('primer', 'Presets');
+        return t('Presets', category: 'primer');
     }
 
+    #[Override]
     public static function pluralLowerDisplayName(): string
     {
-        return Craft::t('primer', 'presets');
+        return t('presets', category: 'primer');
     }
 
+    #[Override]
     public static function hasTitles(): bool
     {
         return false;
     }
 
+    #[Override]
     public static function isLocalized(): bool
     {
         return true;
     }
 
-    /**
-     * No "Copy value from site" in a field's menu: Craft's copy runs in its element editor's script, which the
-     * preset screen doesn't use.
-     */
-    public function getIsCrossSiteCopyable(): bool
+    #[Override]
+    public static function hasStatuses(): bool
     {
-        return false;
+        return true;
+    }
+
+    /**
+     * Every preset, then one source per section with entry types. Each lists the presets of the site the index is
+     * about.
+     */
+    #[Override]
+    protected static function defineSources(string $context): array
+    {
+        $sources = [[
+            'key' => '*',
+            'label' => t('All presets', category: 'primer'),
+            'criteria' => ['inSection' => true],
+        ]];
+
+        $sections = Sections::getAllSections()->filter(fn(Section $section) => $section->getEntryTypes() !== []);
+        if ($sections->isNotEmpty()) {
+            $sources[] = ['heading' => t('Sections')];
+
+            foreach ($sections as $section) {
+                $sources[] = [
+                    'key' => "section:$section->uid",
+                    'label' => t($section->name, category: 'site'),
+                    'criteria' => ['sectionId' => $section->id, 'inSection' => true],
+                    'data' => ['handle' => $section->handle],
+                ];
+            }
+        }
+
+        return $sources;
+    }
+
+    /**
+     * Craft's actions, without Duplicate: an entry type has one preset per site.
+     */
+    #[Override]
+    public static function actions(string $source): array
+    {
+        return array_values(array_filter(parent::actions($source), fn($action) => $action !== Duplicate::class));
+    }
+
+    #[Override]
+    protected static function includeSetStatusAction(): bool
+    {
+        return true;
+    }
+
+    #[Override]
+    protected static function defineTableAttributes(): array
+    {
+        return [
+            'section' => ['label' => t('Section')],
+            'fields' => ['label' => t('Fields')],
+            ...parent::defineTableAttributes(),
+        ];
+    }
+
+    #[Override]
+    protected static function defineDefaultTableAttributes(string $source): array
+    {
+        return $source === '*' ? ['section', 'fields', 'status'] : ['fields', 'status'];
+    }
+
+    #[Override]
+    protected static function defineSortOptions(): array
+    {
+        return [
+            ['label' => t('Date Created'), 'orderBy' => 'dateCreated', 'defaultDir' => 'desc'],
+            ['label' => t('Date Updated'), 'orderBy' => 'dateUpdated', 'defaultDir' => 'desc'],
+            ['label' => t('ID'), 'orderBy' => 'id'],
+        ];
+    }
+
+    #[Override]
+    protected function attributeHtml(string $attribute): string|\Stringable
+    {
+        return match ($attribute) {
+            'section' => Html::encode(($section = $this->getSection()) ? t($section->name, category: 'site') : ''),
+            'fields' => Html::encode(implode(', ', array_map(
+                fn(CustomField $element) => (string)$element->label(),
+                $this->getChosenFieldElements(),
+            )) ?: t('No fields yet', category: 'primer')),
+            default => parent::attributeHtml($attribute),
+        };
+    }
+
+    /**
+     * The entry type's own icon, which the preset's chips and cards show.
+     */
+    public function getIcon(): ?string
+    {
+        return $this->getType()?->getIcon();
+    }
+
+    /**
+     * The entry type's own colour.
+     */
+    public function getColor(): ?Color
+    {
+        return $this->getType()?->getColor();
     }
 
     /**
      * @return PresetQuery
      */
+    #[Override]
     public static function find(): PresetQuery
     {
-        return new PresetQuery(static::class);
+        return new PresetQuery();
     }
 
     /**
-     * Whether the preset applies in its site: on, and on for that site. Presets have no statuses in
-     * Craft's sense, so a query's `status()` can't tell.
+     * Whether the preset applies in its site: on, and on for that site.
      */
     public function isOn(): bool
     {
-        return $this->enabled && $this->getEnabledForSite();
+        return $this->enabled && (bool)$this->getEnabledForSite();
     }
 
     /**
-     * Switches sites of the preset's scope on or off, as Craft's status field does (`Status::switched()`); other
-     * sites are left out.
-     *
-     * @param array<int, bool> $bySite
-     * @return int[] The sites whose status this sets. More than the preset's own site, and the save has to propagate.
+     * Whether the preset hasn't been saved yet: an unpublished draft, which picks its section and entry type.
      */
-    public function switchSites(array $bySite): array
+    public function isNewPreset(): bool
     {
-        $switched = Status::switched($this->enabled, $bySite, array_column($this->getSupportedSites(), 'siteId'));
-        $this->enabled = $switched['enabled'];
-        $this->setEnabledForSite($switched['sites']);
-
-        return array_keys($switched['sites']);
+        return !$this->id || $this->getIsUnpublishedDraft();
     }
 
     /**
@@ -137,41 +255,75 @@ class Preset extends Element
     public function setFieldUids(array|string|null $uids): void
     {
         if (is_string($uids)) {
-            $uids = Json::decodeIfJson($uids);
+            $uids = $uids === '' ? [] : Json::decodeIfJson($uids);
         }
 
         $this->_fieldUids = array_values(array_unique(array_filter((array)$uids, 'is_string')));
     }
 
+    /**
+     * Only what the preset's own fields post: its section and entry type while it's new, and its field choice. A new
+     * preset that gets another entry type keeps the fields of the choice that are the entry type's, or else starts
+     * with the field choice the entry type's presets in other scopes share.
+     */
+    #[Override]
+    public function setAttributesFromRequest(array $values): void
+    {
+        $typeBefore = [$this->sectionId, $this->typeId];
+
+        if ($this->isNewPreset()) {
+            foreach (['sectionId', 'typeId'] as $attribute) {
+                if (is_numeric($values[$attribute] ?? null)) {
+                    $this->$attribute = (int)$values[$attribute];
+                }
+            }
+
+            // A section without this entry type takes its first one.
+            if ($this->sectionId && !$this->typeIsInSection()) {
+                $this->typeId = ($this->getSection()?->getEntryTypes()[0] ?? null)?->id;
+            }
+        }
+
+        if (array_key_exists('fieldUids', $values)) {
+            $this->setFieldUids($values['fieldUids'] ?? []);
+        }
+
+        // Layout element UIDs are the entry type's own: a choice for another one keeps nothing.
+        if ([$this->sectionId, $this->typeId] !== $typeBefore) {
+            $kept = FieldChoice::kept($this->_fieldUids, $this->getLayoutFieldUids());
+            $this->_fieldUids = $kept ?: app(Presets::class)->sharedChoice((int)$this->sectionId, (int)$this->typeId);
+        }
+    }
+
     public function getSection(): ?Section
     {
-        return $this->sectionId ? Craft::$app->getEntries()->getSectionById($this->sectionId) : null;
+        return $this->sectionId ? Sections::getSectionById($this->sectionId) : null;
     }
 
     public function getType(): ?EntryType
     {
-        return $this->typeId ? Craft::$app->getEntries()->getEntryTypeById($this->typeId) : null;
+        return $this->typeId ? EntryTypes::getEntryTypeById($this->typeId) : null;
     }
 
     /**
      * The preset's scope: the sites a new entry of its section, created in the preset's site, would be saved to, but
      * none another preset of the section and entry type holds, so every site has one preset.
      */
+    #[Override]
     public function getSupportedSites(): array
     {
-        $sites = Craft::$app->getSites();
         $siteId = $this->siteIdOrPrimary();
         $section = $this->getSection();
 
         $sectionSites = [];
         foreach (array_keys($section?->getSiteSettings() ?? []) as $id) {
-            $site = $sites->getSiteById($id, true);
+            $site = Sites::getSiteById($id, true);
             if ($site) {
                 $sectionSites[$site->id] = ['groupId' => $site->groupId, 'language' => $site->language];
             }
         }
 
-        $siteIds = $section
+        $siteIds = $section && $this->typeId
             ? Scope::siteIds($section->propagationMethod, $siteId, $sectionSites, $this->sitesOfOtherPresets())
             : [];
 
@@ -181,7 +333,7 @@ class Preset extends Element
     }
 
     /**
-     * The sites the other presets of the section and entry type hold, and this one doesn't.
+     * The sites the other presets of the section and entry type hold, and this one doesn't. Drafts hold none.
      *
      * @return int[]
      */
@@ -191,20 +343,23 @@ class Preset extends Element
             return [];
         }
 
-        $rows = (new Query())
-            ->select(['elements_sites.elementId', 'elements_sites.siteId'])
-            ->from(['elements_sites' => Table::ELEMENTS_SITES])
-            ->innerJoin(['primer_presets' => self::TABLE], '[[primer_presets.id]] = [[elements_sites.elementId]]')
-            ->where(['primer_presets.sectionId' => $this->sectionId, 'primer_presets.typeId' => $this->typeId])
-            ->all();
+        $rows = DB::table(Table::ELEMENTS_SITES, 'elements_sites')
+            ->join(self::TABLE.' as primer_presets', 'primer_presets.id', '=', 'elements_sites.elementId')
+            ->join(Table::ELEMENTS.' as elements', 'elements.id', '=', 'elements_sites.elementId')
+            ->where('primer_presets.sectionId', $this->sectionId)
+            ->where('primer_presets.typeId', $this->typeId)
+            ->whereNull('elements.draftId')
+            ->whereNull('elements.revisionId')
+            ->whereNull('elements.dateDeleted')
+            ->get(['elements_sites.elementId', 'elements_sites.siteId']);
 
         $others = [];
         $own = [];
         foreach ($rows as $row) {
-            if ((int)$row['elementId'] === $this->id) {
-                $own[] = (int)$row['siteId'];
+            if ((int)$row->elementId === $this->id) {
+                $own[] = (int)$row->siteId;
             } else {
-                $others[] = (int)$row['siteId'];
+                $others[] = (int)$row->siteId;
             }
         }
 
@@ -216,31 +371,58 @@ class Preset extends Element
      */
     private function siteIdOrPrimary(): int
     {
-        return $this->siteId ?? Craft::$app->getSites()->getPrimarySite()->id;
+        return $this->siteId ?? Sites::getPrimarySite()->id;
     }
 
     /**
-     * The entry type's holdable fields (`HoldableField`), with the same layout element UIDs, not required,
-     * without conditions, half width, in one tab. Built, not stored: it follows the entry type's layout.
+     * The entry type's chosen holdable fields (`HoldableField`), with the same layout element UIDs, not required,
+     * without conditions, in one tab, after the field choice; a new preset's starts with its section and entry type.
+     * Built, not stored: it follows the entry type's layout and the choice.
      */
+    #[Override]
     public function getFieldLayout(): ?FieldLayout
     {
-        if ($this->_fieldLayoutTypeId !== $this->typeId) {
+        $key = Json::encode([$this->sectionId, $this->typeId, $this->_fieldUids, $this->isNewPreset()]);
+
+        if ($this->_fieldLayoutKey !== $key) {
             $this->_fieldLayout = $this->buildFieldLayout();
-            $this->_fieldLayoutTypeId = $this->typeId;
+            $this->_fieldLayoutKey = $key;
         }
 
         return $this->_fieldLayout;
     }
 
     /**
-     * The fields of the preset's layout, chosen or not, in layout order.
+     * The holdable fields of the entry type's layout, chosen or not, in layout order, as layout elements of the
+     * preset.
      *
      * @return CustomField[]
      */
     public function getLayoutFieldElements(): array
     {
-        return $this->getFieldLayout()?->getCustomFieldElements() ?? [];
+        $source = $this->getType()?->getFieldLayout();
+        if (!$source) {
+            return [];
+        }
+
+        $elements = [];
+        foreach ($source->getCustomFieldElements() as $element) {
+            if (!HoldableField::of($element)) {
+                continue;
+            }
+
+            $config = array_merge($element->toArray(), [
+                'required' => false,
+                'width' => 100,
+                'userCondition' => null,
+                'elementCondition' => null,
+                'editCondition' => null,
+                'elementEditCondition' => null,
+            ]);
+            $elements[] = new CustomField($element->getField(), $config);
+        }
+
+        return $elements;
     }
 
     /**
@@ -251,57 +433,49 @@ class Preset extends Element
     public function getChosenFieldElements(): array
     {
         return array_values(array_filter(
-            $this->getLayoutFieldElements(),
+            $this->getFieldLayout()?->getCustomFieldElements() ?? [],
             fn(CustomField $element) => in_array($element->uid, $this->_fieldUids, true),
         ));
     }
 
-    private function buildFieldLayout(): ?FieldLayout
+    /**
+     * The UIDs of the holdable fields of the entry type's layout, in layout order.
+     *
+     * @return string[]
+     */
+    public function getLayoutFieldUids(): array
     {
-        $source = $this->getType()?->getFieldLayout();
-        if (!$source) {
-            return null;
-        }
-
-        $elements = [];
-        foreach ($source->getCustomFieldElements() as $element) {
-            if (!HoldableField::of($element)) {
-                continue;
-            }
-
-            $elements[] = array_merge(['type' => CustomField::class], $element->toArray(), [
-                'required' => false,
-                'width' => 50,
-                'userCondition' => null,
-                'elementCondition' => null,
-                'editCondition' => null,
-                'elementEditCondition' => null,
-            ]);
-        }
-
-        return FieldLayout::createFromConfig([
-            'type' => self::class,
-            'tabs' => [[
-                'name' => Craft::t('primer', 'Preset'),
-                'elements' => $elements,
-            ]],
-        ]);
+        return array_map(fn(CustomField $element) => (string)$element->uid, $this->getLayoutFieldElements());
     }
 
-    protected function defineRules(): array
+    private function buildFieldLayout(): FieldLayout
     {
-        $on = [self::SCENARIO_DEFAULT, self::SCENARIO_LIVE];
+        $elements = [];
 
-        return [
-            ...parent::defineRules(),
-            [['sectionId', 'typeId'], 'required', 'on' => $on],
-            [['sectionId', 'typeId'], 'number', 'integerOnly' => true, 'on' => $on],
-            [['sectionId', 'typeId'], 'validateUnchanged', 'on' => $on],
-            ['typeId', 'validateEntryType', 'on' => $on],
-            ['siteId', 'validateSite', 'on' => $on],
-            ['typeId', 'validateUnique', 'on' => $on],
-            ['fieldUids', 'validateRelationCounts', 'skipOnEmpty' => false, 'on' => $on],
-        ];
+        if ($this->isNewPreset()) {
+            $elements[] = new SectionField();
+            $elements[] = new EntryTypeField();
+        }
+
+        if ($this->getType()) {
+            $elements[] = new FieldChoiceField();
+        }
+
+        foreach ($this->getLayoutFieldElements() as $element) {
+            if (in_array($element->uid, $this->_fieldUids, true)) {
+                $elements[] = $element;
+            }
+        }
+
+        $layout = FieldLayout::createFromConfig(['type' => self::class]);
+        $layout->uid = '6f0d8b4e-3c7a-4b1e-9a52-7d1c2e8f4a90';
+        $layout->setTabs([[
+            'name' => t('Preset', category: 'primer'),
+            'uid' => '2b9e4c1d-8f3a-4e6b-b7d2-5a1c9e0f3b48',
+            'elements' => $elements,
+        ]]);
+
+        return $layout;
     }
 
     /**
@@ -315,167 +489,124 @@ class Preset extends Element
         return in_array($this->typeId, $typeIds, true);
     }
 
-    /**
-     * A saved preset keeps its section and entry type, also when Craft's own `elements/save` is posted another: its
-     * values, field choice and scope are theirs.
-     */
-    public function validateUnchanged(string $attribute): void
+    #[Override]
+    protected function uiLabel(): ?string
     {
-        if (!$this->id) {
-            return;
-        }
+        $type = $this->getType();
 
-        $stored = (new Query())->select($attribute)->from(self::TABLE)->where(['id' => $this->id])->scalar();
-        if (is_numeric($stored) && (int)$stored !== (int)$this->$attribute) {
-            $this->addError($attribute, Craft::t('primer', 'A saved preset keeps its section and entry type.'));
-        }
+        return $type ? t($type->name, category: 'site') : t('New preset', category: 'primer');
+    }
+
+    #[Override]
+    protected function cpEditUrl(): ?string
+    {
+        return "primer/presets/$this->id";
+    }
+
+    #[Override]
+    public function getPostEditUrl(): ?string
+    {
+        return Url::cpUrl('primer');
     }
 
     /**
-     * The entry type is one of the section's.
+     * Primer, then the preset's section, whose source in Primer's index lists its presets.
      */
-    public function validateEntryType(string $attribute): void
+    #[Override]
+    protected function crumbs(): array
     {
-        if (!$this->typeIsInSection()) {
-            $this->addError($attribute, Craft::t('primer', 'This entry type isn’t part of the section.'));
-        }
-    }
+        $crumbs = [
+            new ActionItem()
+                ->label(t('Primer', category: 'primer'))
+                ->href(Url::cpUrl('primer')),
+        ];
 
-    /**
-     * The section is enabled for the preset's site.
-     */
-    public function validateSite(string $attribute): void
-    {
         $section = $this->getSection();
-
-        if ($section && !isset($section->getSiteSettings()[$this->siteIdOrPrimary()])) {
-            $this->addError($attribute, Craft::t('primer', 'The section isn’t enabled for this site.'));
+        if ($section) {
+            $crumbs[] = new ActionItem()
+                ->label(t($section->name, category: 'site'))
+                ->href(Url::cpUrl('primer', ['source' => "section:$section->uid"]));
         }
+
+        return $crumbs;
     }
 
     /**
-     * One preset per section, entry type and site, in every site the preset would span.
+     * What the preset is for, in the editor's sidebar, once it's saved. It doesn't change.
      */
-    public function validateUnique(string $attribute): void
+    #[Override]
+    protected function metadata(): array
     {
-        $query = self::find()
-            ->sectionId($this->sectionId)
-            ->typeId($this->typeId)
-            ->siteId(array_column($this->getSupportedSites(), 'siteId'));
-
-        if ($this->id) {
-            $query->id(['not', $this->id]);
+        if ($this->isNewPreset()) {
+            return [];
         }
 
-        if ($query->exists()) {
-            $this->addError($attribute, Craft::t('primer', 'This entry type already has a preset in this section.'));
-        }
+        return [
+            t('Section') => fn() => ($section = $this->getSection()) ? t($section->name, category: 'site') : false,
+            t('Entry Type') => fn() => ($type = $this->getType()) ? t($type->name, category: 'site') : false,
+        ];
     }
 
     /**
-     * The minimum and maximum number of relations of each chosen field.
-     *
-     * Craft checks them only in the live scenario, and for every field of the layout; a preset checks the chosen ones,
-     * and the relation fields of a chosen Content Block, whose form then shows the error at the field.
+     * The minimum and maximum number of relations of each chosen field, and of the relation fields of a chosen Content
+     * Block, whose form then shows the error at the field. Craft checks the chosen fields itself in its live scenario.
      */
-    public function validateRelationCounts(): void
+    #[Override]
+    public function afterValidate(?LaravelValidator $validator = null): void
     {
+        parent::afterValidate($validator);
+
         foreach ($this->getChosenFieldElements() as $element) {
-            HoldableField::of($element)?->validateIn($this);
+            $field = HoldableField::of($element);
+            if ($field instanceof RelationField && $this->ruleset->inScenarios(PresetRules::SCENARIO_LIVE)) {
+                continue;
+            }
+
+            $field?->validateIn($this);
         }
     }
 
-    public function canView(User $user): bool
-    {
-        return $user->can(Plugin::ACCESS_PERMISSION);
-    }
-
-    /**
-     * Saving needs the user to edit the preset's site, and only that one. Craft then propagates it through the scope,
-     * and what spans every scope (the field choice, emptying a field taken out of it) reaches every site, also sites
-     * the user can't edit, as with Craft's entries.
-     */
-    public function canSave(User $user): bool
-    {
-        return $user->can(Plugin::ACCESS_PERMISSION) && $this->canEditSite($user);
-    }
-
-    /**
-     * Deleting needs the user to edit the preset's site, and only that one: the presets of the other scopes go too.
-     */
-    public function canDelete(User $user): bool
-    {
-        return $user->can(Plugin::ACCESS_PERMISSION) && $this->canEditSite($user);
-    }
-
-    private function canEditSite(User $user): bool
-    {
-        $site = Craft::$app->getSites()->getSiteById($this->siteIdOrPrimary(), true);
-
-        return $site !== null && $user->can("editSite:$site->uid");
-    }
-
-    /**
-     * The UIDs of the fields of the preset's layout, in layout order.
-     *
-     * @return string[]
-     */
-    public function getLayoutFieldUids(): array
-    {
-        return array_map(fn(CustomField $element) => (string)$element->uid, $this->getLayoutFieldElements());
-    }
-
+    #[Override]
     public function beforeSave(bool $isNew): bool
     {
-        if ($this->getFieldLayout()) {
-            // A chosen field that left the entry type's layout is dropped from the choice.
+        // A chosen field that left the entry type's layout is dropped from the choice.
+        if ($this->getType()) {
             $this->_fieldUids = FieldChoice::kept($this->_fieldUids, $this->getLayoutFieldUids());
-
-            // A field that isn't chosen holds no value, whatever the form posted for it.
-            $unchosen = FieldChoice::unchosen($this->getLayoutFieldUids(), $this->_fieldUids);
-            foreach ($this->getLayoutFieldElements() as $element) {
-                $field = HoldableField::of($element);
-                if ($field && in_array($element->uid, $unchosen, true)) {
-                    $this->setFieldValue($field->handle(), $field->emptyValue());
-                }
-            }
         }
 
         return parent::beforeSave($isNew);
     }
 
+    #[Override]
     public function afterSave(bool $isNew): void
     {
         if (!$this->propagating) {
             $this->_choiceBefore = $this->sharedChoiceBefore($isNew);
 
-            $columns = [
-                'sectionId' => $this->sectionId,
-                'typeId' => $this->typeId,
-                'fieldUids' => $this->_fieldUids,
-            ];
-
-            if ($isNew) {
-                Db::insert(self::TABLE, ['id' => $this->id] + $columns);
-            } else {
-                Db::update(self::TABLE, $columns, ['id' => $this->id]);
-            }
+            $model = PresetModel::query()->find($this->id) ?? new PresetModel(['id' => $this->id]);
+            $model->sectionId = (int)$this->sectionId;
+            $model->typeId = (int)$this->typeId;
+            $model->fieldUids = $this->_fieldUids;
+            $model->save();
 
             // The field choice is the same in every scope: the other scopes' presets of the entry type follow.
-            Db::update(self::TABLE, ['fieldUids' => $this->_fieldUids], [
-                'and',
-                ['sectionId' => $this->sectionId, 'typeId' => $this->typeId],
-                ['not', ['id' => $this->id]],
-            ]);
+            if (!$this->getIsDraft()) {
+                PresetModel::query()
+                    ->where('sectionId', $this->sectionId)
+                    ->where('typeId', $this->typeId)
+                    ->whereKeyNot($this->id)
+                    ->update(['fieldUids' => Json::encode($this->_fieldUids)]);
+            }
         }
 
         parent::afterSave($isNew);
     }
 
     /**
-     * Once the preset is saved in every site of its scope: a field the save took out of the choice is emptied in
-     * every other site of every scope too, so a field chosen again starts empty.
+     * Once the preset is saved in every site of its scope: a field the save took out of the choice is emptied in every
+     * site of every scope, so a field chosen again starts empty.
      */
+    #[Override]
     public function afterPropagate(bool $isNew): void
     {
         parent::afterPropagate($isNew);
@@ -483,14 +614,29 @@ class Preset extends Element
         $before = $this->_choiceBefore;
         $this->_choiceBefore = null;
 
-        if ($before !== null && FieldChoice::removed($before, $this->_fieldUids, $this->getLayoutFieldUids())) {
-            $this->emptyUnchosenFieldsElsewhere();
+        $removed = $before !== null ? FieldChoice::removed($before, $this->_fieldUids, $this->getLayoutFieldUids()) : [];
+        if (!$removed || $this->getIsDraft()) {
+            return;
         }
+
+        $fieldIds = [];
+        foreach ($this->getLayoutFieldElements() as $element) {
+            if (in_array($element->uid, $removed, true)) {
+                $fieldIds[] = (int)$element->getField()->id;
+            }
+        }
+
+        app(PresetValues::class)->forget(
+            app(Presets::class)->ids((int)$this->sectionId, (int)$this->typeId),
+            array_values(array_unique($fieldIds)),
+            $removed,
+        );
     }
 
     /**
-     * Presets have no trash: every delete is for good, also Craft's soft delete, its default (such as `elements/delete`).
+     * Presets have no trash: every delete is for good, also Craft's soft delete, its default.
      */
+    #[Override]
     public function beforeDelete(): bool
     {
         $this->hardDelete = true;
@@ -501,11 +647,12 @@ class Preset extends Element
     /**
      * The presets of the entry type in every other scope go too, also in sites the user can't edit.
      */
+    #[Override]
     public function afterDelete(): void
     {
         parent::afterDelete();
 
-        if (!$this->sectionId || !$this->typeId) {
+        if (!$this->sectionId || !$this->typeId || $this->getIsDraft()) {
             return;
         }
 
@@ -518,7 +665,7 @@ class Preset extends Element
             ->all();
 
         foreach ($others as $other) {
-            Craft::$app->getElements()->deleteElement($other, $this->hardDelete);
+            Elements::deleteElement($other, true);
         }
     }
 
@@ -530,33 +677,60 @@ class Preset extends Element
      */
     private function sharedChoiceBefore(bool $isNew): array
     {
-        $query = (new Query())
-            ->select('fieldUids')
-            ->from(self::TABLE)
-            ->where(['sectionId' => $this->sectionId, 'typeId' => $this->typeId])
-            ->orderBy(['id' => SORT_ASC]);
+        $query = PresetModel::query()
+            ->where('sectionId', $this->sectionId)
+            ->where('typeId', $this->typeId)
+            ->orderBy('id');
 
         if (!$isNew) {
-            $query->andWhere(['id' => $this->id]);
+            $query->whereKey($this->id);
         }
 
-        $fieldUids = $query->scalar();
+        $fieldUids = $query->value('fieldUids');
+        $fieldUids = is_string($fieldUids) ? Json::decodeIfJson($fieldUids) : $fieldUids;
 
-        return is_string($fieldUids) ? array_values(array_filter((array)Json::decodeIfJson($fieldUids), 'is_string')) : [];
+        return array_values(array_filter((array)$fieldUids, 'is_string'));
     }
 
     /**
-     * Saves the entry type's presets in every site but this one's: each empties the fields it doesn't choose, in its
-     * own site only. Fields of one site don't propagate, so each site is saved.
+     * The section is enabled for the preset's site, used by `PresetRules`.
      */
-    private function emptyUnchosenFieldsElsewhere(): void
+    public function sectionIsEnabledForSite(): bool
     {
-        $elements = Craft::$app->getElements();
+        return isset($this->getSection()?->getSiteSettings()[$this->siteIdOrPrimary()]);
+    }
 
-        foreach (self::find()->sectionId($this->sectionId)->typeId($this->typeId)->site('*')->all() as $preset) {
-            if ($preset->id !== $this->id || $preset->siteId !== $this->siteId) {
-                $elements->saveElement($preset, false, false, false);
-            }
+    /**
+     * Whether another preset of the section and entry type holds a site this one would span, used by `PresetRules`.
+     */
+    public function overlapsAnotherPreset(): bool
+    {
+        $query = self::find()
+            ->sectionId($this->sectionId)
+            ->typeId($this->typeId)
+            ->siteId(array_column(ElementHelper::supportedSitesForElement($this), 'siteId'));
+
+        if ($this->id) {
+            $query->id(['not', $this->getCanonicalId() ?? $this->id]);
         }
+
+        return $query->exists();
+    }
+
+    /**
+     * The section and entry type stored for a saved preset, used by `PresetRules`: a saved preset keeps them, also
+     * when Craft's own `elements/save` is posted others.
+     *
+     * @return array{sectionId: int, typeId: int}|null
+     */
+    public function storedSectionAndType(): ?array
+    {
+        if (!$this->id || $this->getIsUnpublishedDraft()) {
+            return null;
+        }
+
+        $model = PresetModel::query()->find($this->getCanonicalId() ?? $this->id);
+
+        return $model ? ['sectionId' => $model->sectionId, 'typeId' => $model->typeId] : null;
     }
 }
