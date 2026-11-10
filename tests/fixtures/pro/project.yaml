@@ -8,7 +8,7 @@
 # Features (All propagation, every site) has Page and Feature. Feature holds entriesSite and the Content Block
 # `teaser`: teaserEntries (translation none, at most 2), teaserAssets (site), teaserUsers (language), and the
 # Plain Text teaserText (none), which a preset doesn't hold.
-# Generated through Craft's API; system.schemaVersion must equal Craft's own schema version.
+# Generated through Craft's API. The suites install a copy whose system.schemaVersion is the installed Craft's own.
 dateModified: 1792577938
 email:
   fromEmail: primer@example.com

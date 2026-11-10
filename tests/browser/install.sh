@@ -8,6 +8,9 @@ cd "$(dirname "$0")"
 
 /bin/rm -rf config/project storage/runtime web/cpresources
 cp -R ../fixtures/pro config/project
+# The fixture names the schema version of the Craft it was made with; Craft only installs one that names its own.
+schema_version="$(php -r "require '../../vendor/autoload.php'; echo (require '../../vendor/craftcms/cms/src/config/app.php')['schemaVersion'];")"
+sed -i.bak "s/^  schemaVersion: .*/  schemaVersion: $schema_version/" config/project/project.yaml && rm config/project/project.yaml.bak
 
 php craft db/drop-all-tables --interactive=0
 # The primary site keeps the fixture's name, URL and language: the installer applies these to it.

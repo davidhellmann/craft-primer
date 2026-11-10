@@ -8,7 +8,7 @@ modules:
         configFile: tests/_craft/config/test.php
         entryUrl: http://primer.test/index.php
         projectConfig:
-          folder: tests/fixtures/solo
+          folder: tests/_output/fixtures/solo
           reset: true
         migrations: []
         plugins:
