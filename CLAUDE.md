@@ -1,5 +1,5 @@
 ## Working on Primer
 
 - Use the terms in `GLOSSARY.md` in code, UI and docs.
-- The checks every change must pass are the steps in `.github/workflows/ci.yml`. Run them before you finish; the integration and multisite suites need a test database, set in `tests/.env` (copy `tests/.env.example`).
-- The browser smoke suite (`npm ci`, then `npm test`) installs its own Craft into the database set in `tests/browser/.env` (copy `tests/browser/.env.example`; every table in it is dropped), serves it with `php craft serve` and drives the control panel with Playwright.
+- The checks every change must pass are the steps in `.github/workflows/ci.yml`. Run them before you finish: `composer check-cs`, `composer phpstan` and `composer test`. The tests need no database server: they run Craft on in-memory SQLite. CI also runs them on MySQL and Postgres.
+- Primer's control panel is Craft's own element index and element editor. Before adding a screen, template or script of Primer's own, look for the Craft API that already does it.

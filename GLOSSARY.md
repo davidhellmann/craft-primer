@@ -12,6 +12,10 @@ _Avoid_: Default, prefill, default relation. The one exception is the tagline, "
 The sites a preset spans: those a new entry of its section, created in the preset's site, would be saved to, except sites another preset of the same entry type already holds. One preset element per scope, so a section that doesn't propagate to every site has several presets of an entry type; they share their choice of fields, and every site belongs to one of them.
 _Avoid_: Site group (Craft's own term), propagation group
 
+**Field choice**:
+The fields of its entry type a preset holds, picked in the preset's *Fields*. The same for every preset of the entry type in a section, in every scope; a field taken out of it is emptied in all of them, and starts empty when it's chosen again.
+_Avoid_: Selected fields, preset fields
+
 **Relation field**:
 A field that relates entries, assets or users: an Entries, Assets or Users field. Primer treats them alike. Categories and Tags fields are not relation fields in Primer's sense.
 _Avoid_: Element field, reference field
