@@ -77,7 +77,7 @@ class CpTest extends TestCase
         $this->assertSame(['News'], array_map(fn(NavItem $child) => $child->label, $item->subnav[1]->subnav));
     }
 
-    public function testTheIndexShowsEachPresetsSectionAndFieldsAlsoWhenEditingInline(): void
+    public function testTheIndexShowsEachPresetsSectionAndFieldsAndOffersNoInlineEditing(): void
     {
         $this->actingAs($this->userWith(['accessCp', 'accessPlugin-primer']));
         $this->preset('news', 'article', ['topics' => [], 'writers' => []]);
@@ -87,6 +87,8 @@ class CpTest extends TestCase
 
             $this->assertSame('News', $rows[0]['section']);
             $this->assertSame('Topics, Writers', $rows[0]['fields']);
+            // Without an editable row, Craft leaves out "Edit inline".
+            $this->assertArrayNotHasKey('inlineEditable', $rows[0]);
         }
     }
 

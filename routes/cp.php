@@ -16,7 +16,6 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('can:'.Plugin::ACCESS_PERMISSION)->group(function() {
     Route::get('primer', PresetIndexController::class)
         ->defaults('elementType', Preset::class)
-        ->defaults('newElementRoute', 'primer.presets.new')
         ->name('primer.index');
     Route::get('primer/presets/new', NewPresetController::class)
         ->name('primer.presets.new');
