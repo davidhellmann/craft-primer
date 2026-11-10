@@ -183,7 +183,7 @@ class CpTest extends TestCase
         // A saved preset keeps its section and entry type; the sidebar says which they are.
         $this->assertSame(['fieldUids', 'fields.writers'], $this->controlPaths($props['ui']));
         $this->assertStringContainsString('News', $props['metadataHtml']);
-        $this->assertSame(['Primer', 'News'], array_slice(array_column($props['crumbs'], 'label'), 0, 2));
+        $this->assertSame(['Presets', 'News'], array_slice(array_column($props['crumbs'], 'label'), 0, 2));
     }
 
     public function testSavingThePresetScreenStoresTheChoiceAndValues(): void

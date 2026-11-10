@@ -37,6 +37,7 @@ use davidhellmann\primer\validation\PresetRules;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Validator as LaravelValidator;
 use Override;
+use Stringable;
 
 use function CraftCms\Cms\t;
 
@@ -188,7 +189,7 @@ class Preset extends Element implements Colorable, Iconic
     }
 
     #[Override]
-    protected function attributeHtml(string $attribute): string|\Stringable
+    protected function attributeHtml(string $attribute): string|Stringable
     {
         return match ($attribute) {
             'section' => Html::encode(($section = $this->getSection()) ? t($section->name, category: 'site') : ''),
@@ -204,7 +205,7 @@ class Preset extends Element implements Colorable, Iconic
      * The section and the field choice aren't edited inline: they show as they are.
      */
     #[Override]
-    protected function inlineAttributeInputHtml(string $attribute): string|\Stringable
+    protected function inlineAttributeInputHtml(string $attribute): string|Stringable
     {
         return in_array($attribute, ['section', 'fields'], true)
             ? $this->getAttributeHtml($attribute)
@@ -289,9 +290,10 @@ class Preset extends Element implements Colorable, Iconic
                 }
             }
 
-            // A section without this entry type takes its first one.
-            if ($this->sectionId && !$this->typeIsInSection()) {
-                $this->typeId = ($this->getSection()?->getEntryTypes()[0] ?? null)?->id;
+            // A section without this entry type takes its first one a preset can hold fields of.
+            $section = $this->getSection();
+            if ($section && !$this->typeIsInSection()) {
+                $this->typeId = (app(Presets::class)->entryTypes($section)[0] ?? null)?->id;
             }
         }
 
@@ -521,14 +523,14 @@ class Preset extends Element implements Colorable, Iconic
     }
 
     /**
-     * Primer, then the preset's section, whose source in Primer's index lists its presets.
+     * Primer's index, then the preset's section, whose source there lists its presets: the crumbs of the index.
      */
     #[Override]
     protected function crumbs(): array
     {
         $crumbs = [
             new ActionItem()
-                ->label(t('Primer', category: 'primer'))
+                ->label(static::pluralDisplayName())
                 ->href(Url::cpUrl('primer')),
         ];
 
