@@ -3,7 +3,9 @@
 namespace davidhellmann\primer\tests\Feature;
 
 use CraftCms\Cms\User\Models\User;
+use CraftCms\Cms\Cp\Data\NavItem;
 use davidhellmann\primer\elements\Preset;
+use davidhellmann\primer\Plugin;
 use davidhellmann\primer\tests\Support\Content;
 use davidhellmann\primer\tests\TestCase;
 use Illuminate\Testing\TestResponse;
@@ -60,7 +62,32 @@ class CpTest extends TestCase
             ->where('newElement.href', cp_url('primer/presets/new'))
             ->toArray();
 
-        $this->assertSame(['All presets', 'Sections', 'News', 'Topics'], $this->sourceLabels($page));
+        // Topics' entry type has no relation fields: there's nothing to preset.
+        $this->assertSame(['All presets', 'Sections', 'News'], $this->sourceLabels($page));
+    }
+
+    public function testPrimersNavItemListsTheIndexsSources(): void
+    {
+        $this->actingAs($this->userWith(['accessCp', 'accessPlugin-primer']));
+
+        $item = Plugin::getInstance()->getCpNavItem();
+
+        $this->assertInstanceOf(NavItem::class, $item);
+        $this->assertSame(['All presets', 'Sections'], array_map(fn(NavItem $child) => $child->label, $item->subnav));
+        $this->assertSame(['News'], array_map(fn(NavItem $child) => $child->label, $item->subnav[1]->subnav));
+    }
+
+    public function testTheIndexShowsEachPresetsSectionAndFieldsAlsoWhenEditingInline(): void
+    {
+        $this->actingAs($this->userWith(['accessCp', 'accessPlugin-primer']));
+        $this->preset('news', 'article', ['topics' => [], 'writers' => []]);
+
+        foreach ([[], ['editable' => 'true']] as $params) {
+            $rows = $this->inertia($this->get(cp_url('primer', ['viewMode' => 'table', ...$params])))->toArray()['props']['data'];
+
+            $this->assertSame('News', $rows[0]['section']);
+            $this->assertSame('Topics, Writers', $rows[0]['fields']);
+        }
     }
 
     public function testANewPresetStartsInTheIndexsSectionWithAnEntryTypeThatHasNoPresetYet(): void

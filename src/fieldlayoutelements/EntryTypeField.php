@@ -9,12 +9,14 @@ use CraftCms\Cms\FieldLayout\LayoutElements\BaseNativeField;
 use CraftCms\Cms\Ui\Contracts\Control;
 use CraftCms\Cms\Ui\Controls\Choice;
 use davidhellmann\primer\elements\Preset;
+use davidhellmann\primer\services\Presets;
 use Override;
 
 use function CraftCms\Cms\t;
 
 /**
- * A new preset's entry type: one of its section's, with the entry type's own icon and colour. Only in a new preset's
+ * A new preset's entry type: one of its section's with fields a preset can hold, with the entry type's own icon and
+ * colour. Only in a new preset's
  * layout, once it has a section; once saved, a preset keeps its entry type.
  */
 class EntryTypeField extends BaseNativeField
@@ -53,7 +55,7 @@ class EntryTypeField extends BaseNativeField
                 'value' => $type->id,
                 'icon' => $type->icon,
                 'color' => $type->color?->value,
-            ], fn($value) => $value !== null), $section->getEntryTypes()))
+            ], fn($value) => $value !== null), app(Presets::class)->entryTypes($section)))
             ->withoutPlaceholder()
             ->value($preset->typeId);
     }

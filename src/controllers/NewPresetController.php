@@ -8,11 +8,11 @@ use CraftCms\Cms\Element\Validation\ElementRules;
 use CraftCms\Cms\Entry\Data\EntryType;
 use CraftCms\Cms\Section\Data\Section;
 use CraftCms\Cms\Site\Data\Site;
-use CraftCms\Cms\Support\Facades\Sections;
 use CraftCms\Cms\Support\Facades\Sites;
 use CraftCms\Cms\Support\Str;
 use CraftCms\Cms\Support\Url;
 use davidhellmann\primer\elements\Preset;
+use davidhellmann\primer\services\Presets;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -35,7 +35,7 @@ readonly class NewPresetController
         abort_unless($site !== null, 403, 'User not authorized to edit content in any sites.');
 
         $section = $this->section($request->integer('sectionId'), $index['source'] ?? null, $site);
-        abort_unless($section !== null, 400, t('No section has entry types for this site.', category: 'primer'));
+        abort_unless($section !== null, 400, t('No section of this site has an entry type with relation fields.', category: 'primer'));
 
         $preset = new Preset([
             'siteId' => $site->id,
@@ -84,12 +84,11 @@ readonly class NewPresetController
     }
 
     /**
-     * The section asked for, or the index's, or else the first that has entry types and is enabled for the site.
+     * The section asked for, or the index's, or else the first a preset can be made for in the site.
      */
     private function section(int $sectionId, mixed $source, Site $site): ?Section
     {
-        $sections = Sections::getAllSections()->filter(fn(Section $section) => $section->getEntryTypes() !== []
-            && isset($section->getSiteSettings()[$site->id]));
+        $sections = app(Presets::class)->sections($site->id);
 
         $uid = is_string($source) && str_starts_with($source, 'section:') ? Str::after($source, 'section:') : null;
 
@@ -103,7 +102,7 @@ readonly class NewPresetController
      */
     private function entryType(Section $section, Site $site, int $typeId): EntryType
     {
-        $types = $section->getEntryTypes();
+        $types = app(Presets::class)->entryTypes($section);
         $taken = Preset::find()->sectionId($section->id)->siteId($site->id)->get()->pluck('typeId')->all();
 
         return array_find($types, fn(EntryType $type) => $type->id === $typeId)

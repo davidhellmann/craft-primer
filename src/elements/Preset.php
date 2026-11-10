@@ -117,8 +117,8 @@ class Preset extends Element implements Colorable, Iconic
     }
 
     /**
-     * Every preset, then one source per section with entry types. Each lists the presets of the site the index is
-     * about.
+     * Every preset, then one source per section with an entry type a preset can hold fields of. Each lists the
+     * presets of the site the index is about.
      */
     #[Override]
     protected static function defineSources(string $context): array
@@ -129,7 +129,7 @@ class Preset extends Element implements Colorable, Iconic
             'criteria' => ['inSection' => true],
         ]];
 
-        $sections = Sections::getAllSections()->filter(fn(Section $section) => $section->getEntryTypes() !== []);
+        $sections = app(Presets::class)->sections();
         if ($sections->isNotEmpty()) {
             $sources[] = ['heading' => t('Sections')];
 
@@ -198,6 +198,17 @@ class Preset extends Element implements Colorable, Iconic
             )) ?: t('No fields yet', category: 'primer')),
             default => parent::attributeHtml($attribute),
         };
+    }
+
+    /**
+     * The section and the field choice aren't edited inline: they show as they are.
+     */
+    #[Override]
+    protected function inlineAttributeInputHtml(string $attribute): string|\Stringable
+    {
+        return in_array($attribute, ['section', 'fields'], true)
+            ? $this->getAttributeHtml($attribute)
+            : parent::inlineAttributeInputHtml($attribute);
     }
 
     /**

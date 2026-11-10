@@ -44,9 +44,11 @@ class SitesTest extends TestCase
     {
         $this->actingAs(User::query()->findOrFail($this->editor(['corporateEn', 'shopFr'])->id));
 
-        $sites = $this->inertia($this->get(cp_url('primer', ['site' => 'shopFr'])))->toArray()['props']['sites'];
+        $props = $this->inertia($this->get(cp_url('primer', ['site' => 'shopFr'])))->toArray()['props'];
 
-        $this->assertSame(['corporateEn', 'shopFr'], array_column($sites, 'handle'));
+        $this->assertSame(['corporateEn', 'shopFr'], array_column($props['sites'], 'handle'));
+        // Craft's site crumb, which leads the screen's crumbs.
+        $this->assertSame('Shop FR', $props['craft']['siteCrumb']['label'] ?? null);
     }
 
     public function testThePresetScreenShowsThePresetInTheRequestedSite(): void

@@ -7,6 +7,7 @@ use CraftCms\Cms\Plugin\Testing\PluginTestCase;
 use CraftCms\Cms\Support\Json;
 use CraftCms\DependencyAwareCache\CacheServiceProvider;
 use CraftCms\RulesetValidation\RulesetValidationServiceProvider;
+use davidhellmann\primer\elements\Preset;
 use Illuminate\Routing\Events\Routing;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
@@ -37,6 +38,9 @@ abstract class TestCase extends PluginTestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Element types keep their sources for the process; each test has a content model of its own.
+        Preset::forgetSources();
 
         Event::listen(function(Routing $event) {
             $this->app->forgetScopedInstances();

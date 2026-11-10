@@ -2,6 +2,8 @@
 
 namespace davidhellmann\primer;
 
+use CraftCms\Cms\Cp\Data\NavItem;
+use CraftCms\Cms\Cp\Navigation;
 use CraftCms\Cms\Element\Events\ElementDeleted;
 use CraftCms\Cms\Element\Events\ElementLifecycleSaved;
 use CraftCms\Cms\Element\Events\ElementLifecycleSaving;
@@ -42,6 +44,18 @@ class Plugin extends BasePlugin
     protected array $elementTypes = [
         Preset::class,
     ];
+
+    /**
+     * Primer's nav item lists the index's sources, as Craft's own Entries item does.
+     */
+    public function getCpNavItem(): NavItem|array|null
+    {
+        $item = parent::getCpNavItem();
+
+        return $item instanceof NavItem
+            ? $item->subnav(app(Navigation::class)->sourceSubnav(Preset::class, 'primer'))
+            : $item;
+    }
 
     public function boot(): void
     {

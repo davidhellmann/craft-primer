@@ -6,16 +6,16 @@ use CraftCms\Cms\Element\Contracts\ElementInterface;
 use CraftCms\Cms\FieldLayout\FieldLayoutElementContext;
 use CraftCms\Cms\FieldLayout\LayoutElements\BaseNativeField;
 use CraftCms\Cms\Section\Data\Section;
-use CraftCms\Cms\Support\Facades\Sections;
 use CraftCms\Cms\Ui\Contracts\Control;
 use CraftCms\Cms\Ui\Controls\Choice;
 use davidhellmann\primer\elements\Preset;
+use davidhellmann\primer\services\Presets;
 use Override;
 
 use function CraftCms\Cms\t;
 
 /**
- * A new preset's section: one enabled for the preset's site that has entry types. Only in a new preset's layout; once
+ * A new preset's section: one enabled for the preset's site, with an entry type a preset can hold fields of. Only in a new preset's layout; once
  * saved, a preset keeps its section.
  */
 class SectionField extends BaseNativeField
@@ -47,14 +47,11 @@ class SectionField extends BaseNativeField
             return null;
         }
 
-        $sections = Sections::getAllSections()
-            ->filter(fn(Section $section) => $section->getEntryTypes() !== []
-                && isset($section->getSiteSettings()[$preset->siteId]))
+        $sections = app(Presets::class)->sections((int)$preset->siteId)
             ->map(fn(Section $section) => [
                 'label' => $section->getUiLabel(),
                 'value' => $section->id,
             ])
-            ->values()
             ->all();
 
         return Choice::make($this->attribute())
