@@ -1,6 +1,6 @@
 # Release Notes for Primer
 
-## 1.0.1 - Unreleased
+## 1.0.1 - 2026-11-11
 
 ### Fixed
 - Primer's index no longer lists sections whose entry types have no relation fields, and neither the index nor a section page offers a preset for such an entry type: there's nothing a preset could hold.
