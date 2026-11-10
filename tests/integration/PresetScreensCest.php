@@ -2,6 +2,7 @@
 
 namespace davidhellmann\primer\tests\integration;
 
+use Craft;
 use craft\helpers\Json;
 use davidhellmann\primer\elements\Preset;
 use davidhellmann\primer\tests\Support\IntegrationTester;
@@ -27,11 +28,28 @@ class PresetScreensCest
         $I->see('Section', '.primer-index thead');
         $I->see('Entry Types', '.primer-index thead');
         $I->see('News', '[data-section="news"]');
-        $I->see('Topics', '[data-section="topics"]');
         // The preset's entry type as Craft's chip, with its field count.
         $I->see('Article', '[data-section="news"] [data-preset] .chip');
         $I->see('2 fields', '[data-section="news"] [data-preset]');
-        $I->dontSeeElement('[data-section="topics"] [data-preset]');
+    }
+
+    public function aSectionWhoseEntryTypesHaveNoRelationFieldsIsLeftOut(IntegrationTester $I): void
+    {
+        $I->amOnPage('/admin/primer');
+
+        // Topics' only entry type, Topic, has no relation field: a preset couldn't hold anything.
+        $I->seeElement('[data-section="news"]');
+        $I->dontSeeElement('[data-section="topics"]');
+    }
+
+    public function addEntryTypeOffersNoEntryTypeWithoutRelationFields(IntegrationTester $I): void
+    {
+        $this->setEntryTypes($I, 'news', ['article', 'note', 'topic']);
+
+        $I->amOnPage('/admin/primer');
+
+        $I->see('Note', '[data-section="news"] .menu-item');
+        $I->dontSee('Topic', '[data-section="news"] .menu-item');
     }
 
     public function addEntryTypeOffersTheTypesWithoutAPreset(IntegrationTester $I): void
@@ -48,7 +66,6 @@ class PresetScreensCest
             $I->section('news')->id,
             $I->entryType('note')->id,
         ));
-        $I->see('Topic', '[data-section="topics"] .menu-item');
     }
 
     public function aSectionOpensAsPageOnClickAndAsSlideoutOnDoubleClick(IntegrationTester $I): void
@@ -349,5 +366,15 @@ class PresetScreensCest
     private function newPresetUrl(IntegrationTester $I, string $typeHandle): string
     {
         return sprintf('/admin/primer/presets/new?sectionId=%d&typeId=%d', $I->section('news')->id, $I->entryType($typeHandle)->id);
+    }
+
+    /**
+     * @param string[] $typeHandles
+     */
+    private function setEntryTypes(IntegrationTester $I, string $sectionHandle, array $typeHandles): void
+    {
+        $section = $I->section($sectionHandle);
+        $section->setEntryTypes(array_map(fn(string $handle) => $I->entryType($handle), $typeHandles));
+        $I->assertTrue(Craft::$app->getEntries()->saveSection($section));
     }
 }

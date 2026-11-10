@@ -6,6 +6,7 @@ use craft\models\EntryType;
 use craft\models\Section;
 use craft\models\Site;
 use davidhellmann\primer\elements\Preset;
+use davidhellmann\primer\holdable\HoldableField;
 use davidhellmann\primer\models\EntryTypePresets;
 use yii\base\Component;
 
@@ -16,6 +17,21 @@ use yii\base\Component;
  */
 class Presets extends Component
 {
+    /**
+     * Whether a preset of the entry type could hold anything: its layout has a holdable field (`HoldableField`).
+     * Primer offers no preset for an entry type without one.
+     */
+    public function canHoldFields(EntryType $type): bool
+    {
+        foreach ($type->getFieldLayout()->getCustomFieldElements() as $element) {
+            if (HoldableField::of($element)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * The preset that applies to a new entry of a section's entry type in a site: the oldest, should two share the
      * site (`PresetQuery`). None when the entry type has left the section: its presets stay, hidden and inert.

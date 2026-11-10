@@ -36,7 +36,8 @@ class PresetsController extends Controller
     }
 
     /**
-     * Every section of the site, its entry types with a preset, and the ones still without.
+     * Every section of the site, its entry types with a preset, and the ones still without that a preset could hold
+     * fields of. A section with neither isn't listed.
      */
     public function actionIndex(): Response
     {
@@ -55,7 +56,9 @@ class PresetsController extends Controller
             foreach ($section->getEntryTypes() as $type) {
                 $line = $this->typeLine($section, $type, $presets, $indexUrl);
                 if (!$line['preset'] && !$line['otherSites']) {
-                    $withoutPreset[] = $type;
+                    if (Plugin::getInstance()->presets->canHoldFields($type)) {
+                        $withoutPreset[] = $type;
+                    }
                     continue;
                 }
 
@@ -63,6 +66,10 @@ class PresetsController extends Controller
                     'chipHtml' => Cp::chipHtml($type, ['hyperlink' => false]),
                     'fieldCount' => $line['preset'] ? count($line['preset']->getChosenFieldElements()) : null,
                 ];
+            }
+
+            if (!$withPreset && !$withoutPreset) {
+                continue;
             }
 
             $sections[] = [
@@ -102,7 +109,8 @@ class PresetsController extends Controller
     }
 
     /**
-     * The section page: `primer/sections/<handle>`, its entry types and the fields their presets fill. One CP screen
+     * The section page: `primer/sections/<handle>`, its entry types and the fields their presets fill. A section
+     * without entry types a preset could hold fields of isn't found, as the index leaves it out. One CP screen
      * for the page and, requested by `Craft.CpScreenSlideout` with `sectionHandle` as a param, the slideout.
      */
     public function actionSection(string $sectionHandle): Response
@@ -111,11 +119,19 @@ class PresetsController extends Controller
         $section = Craft::$app->getEntries()->getSectionByHandle($sectionHandle)
             ?? throw new NotFoundHttpException('Section not found');
 
+        // The entry types with a preset, and the ones without that a preset could hold fields of.
         $presets = Plugin::getInstance()->presets->ofEntryTypes($site, $section);
-        $types = array_map(
-            fn(EntryType $type) => $this->typeLine($section, $type, $presets, $this->sectionUrl($section, $site)),
-            $section->getEntryTypes(),
-        );
+        $types = array_values(array_filter(
+            array_map(
+                fn(EntryType $type) => $this->typeLine($section, $type, $presets, $this->sectionUrl($section, $site)),
+                $section->getEntryTypes(),
+            ),
+            fn(array $line) => $line['preset'] || $line['otherSites']
+                || Plugin::getInstance()->presets->canHoldFields($line['type']),
+        ));
+        if (!$types) {
+            throw new NotFoundHttpException('The section has no entry types with relation fields.');
+        }
 
         $sectionName = Craft::t('site', $section->name);
 

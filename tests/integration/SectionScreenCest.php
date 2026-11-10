@@ -2,6 +2,7 @@
 
 namespace davidhellmann\primer\tests\integration;
 
+use Craft;
 use craft\helpers\Json;
 use davidhellmann\primer\tests\Support\IntegrationTester;
 
@@ -43,6 +44,25 @@ class SectionScreenCest
         $I->seeElement("$note a.btn.add[href\$=\"$newUrl\"]");
         $I->dontSeeElement("$note [data-primer-delete]");
         $I->dontSeeElement("$note [data-primer-fields]");
+    }
+
+    public function anEntryTypeWithoutRelationFieldsIsLeftOut(IntegrationTester $I): void
+    {
+        $section = $I->section('news');
+        $section->setEntryTypes([$I->entryType('article'), $I->entryType('note'), $I->entryType('topic')]);
+        $I->assertTrue(Craft::$app->getEntries()->saveSection($section));
+
+        $I->amOnPage('/admin/primer/sections/news');
+
+        $I->seeElement('[data-primer-type="note"]');
+        $I->dontSeeElement('[data-primer-type="topic"]');
+    }
+
+    public function aSectionWhoseEntryTypesHaveNoRelationFieldsIsNotFound(IntegrationTester $I): void
+    {
+        $I->amOnPage('/admin/primer/sections/topics');
+
+        $I->seeResponseCodeIs(404);
     }
 
     public function aPresetWithoutChosenFieldsSaysSo(IntegrationTester $I): void
