@@ -31,11 +31,11 @@ jobs:
       fail-fast: false
       matrix:
         db: [mysql, pgsql]
-        craft: ['5.11.5', latest]
+        craft: ['5.12.3', latest]
         include:
-          - craft: '5.11.5'
+          - craft: '5.12.3'
             php: '8.2'
-            composer: --with craftcms/cms:5.11.5
+            composer: --with craftcms/cms:5.12.3
           - craft: latest
             php: '8.4'
             composer: ''
