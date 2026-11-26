@@ -34,9 +34,9 @@ class PackageTest extends Unit
         $this->assertStringStartsWith('The Craft License', (string)file_get_contents(dirname(__DIR__, 2) . '/LICENSE.md'));
     }
 
-    public function testItRequiresAtLeastCraft5115AndPhp82(): void
+    public function testItRequiresAtLeastCraft5123AndPhp82(): void
     {
-        $this->assertSame('^5.11.5', $this->composer['require']['craftcms/cms']);
+        $this->assertSame('^5.12.3', $this->composer['require']['craftcms/cms']);
         $this->assertSame('>=8.2', $this->composer['require']['php']);
     }
 }

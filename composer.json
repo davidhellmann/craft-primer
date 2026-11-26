@@ -28,7 +28,7 @@
     },
     "require": {
         "php": ">=8.2",
-        "craftcms/cms": "^5.11.5"
+        "craftcms/cms": "^5.12.3"
     },
     "require-dev": {
         "codeception/codeception": "^5.2",

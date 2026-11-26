@@ -1,5 +1,10 @@
 # Release Notes for Primer
 
+## 1.1.0 - Unreleased
+
+### Changed
+- Primer now requires Craft CMS 5.12.3 or later, the first Craft that installs Twig 3.31.1. Composer no longer installs the Twig versions earlier Crafts require, because of their security advisories.
+
 ## 1.0.1 - 2026-11-11
 
 ### Fixed

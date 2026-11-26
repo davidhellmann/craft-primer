@@ -17,7 +17,7 @@ Set the right defaults for your entries, if needed. Primer holds presets for the
 
 ## Requirements
 
-Craft CMS 5.11.5 or later, PHP 8.2 or later. Several sites need Craft Pro; on a single site Primer works with any edition.
+Craft CMS 5.12.3 or later, PHP 8.2 or later. Several sites need Craft Pro; on a single site Primer works with any edition.
 
 ## Installation
 
